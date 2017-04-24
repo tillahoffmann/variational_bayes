@@ -1,4 +1,4 @@
-# python_skeleton [![Build Status](https://travis-ci.org/tillahoffmann/python_skeleton.svg?branch=master)](https://travis-ci.org/tillahoffmann/python_skeleton)
+# variational_bayes [![Build Status](https://travis-ci.org/tillahoffmann/variational_bayes.svg?branch=master)](https://travis-ci.org/tillahoffmann/variational_bayes)
 
 Skeleton for python projects using `conda`, py.test and TravisCI.
 

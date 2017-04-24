@@ -1,4 +1,4 @@
-name: python_skeleton
+name: variational_bayes
 channels:
   - conda-forge
 dependencies:

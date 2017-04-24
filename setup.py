@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 
 setup(
-    name='python_skeleton',
+    name='variational_bayes',
     version='0.1',
-    author='Till Hoffmann',
+    author='tillahoffmann',
     packages=find_packages(),
 )
