@@ -13,28 +13,6 @@ def multidigamma(x, p):
     return np.sum(scipy.special.digamma(x[..., None] - 0.5 * np.arange(p)), axis=-1)
 
 
-def aggregate_coefficients(coefficients):
-    """
-    Aggregate coefficient dictionaries.
-
-    Parameters
-    ----------
-    coefficients : list[dict]
-        sequence of coefficient dictionaries
-
-    Returns
-    -------
-    aggregate : dict
-        aggregated coefficients
-    """
-    aggregate = collections.defaultdict(lambda: 0)
-    for current in coefficients:
-        for key, value in current.items():
-            aggregate[key] += value
-
-    return aggregate
-
-
 class Container:
     """
     Container whose attributes can be accessed using indexing.

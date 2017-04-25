@@ -109,3 +109,21 @@ def test_log_proba(distribution, scipy_distribution):
 
     np.testing.assert_allclose(actual, desired, err_msg="failed to reproduce log proba for %s" %
                                distribution)
+
+
+def test_natural_parameters(distribution):
+    likelihood = distribution.likelihood_cls(distribution, **distribution._attributes)
+    for key in likelihood._attributes:
+        try:
+            parameters = likelihood.natural_parameters(key)
+            # Make sure the shapes of the natural parameters match the sufficient statistics
+            if key == 'x':
+                for key, value in parameters.items():
+                    assert value.shape == getattr(distribution, key).shape, "shape of %s does not " \
+                        "match" % key
+            else:
+                # Make sure the values are finite
+                for key, value in parameters.items():
+                    assert np.all(np.isfinite(value)), "%s is not finite" % key
+        except NotImplementedError:
+            pass

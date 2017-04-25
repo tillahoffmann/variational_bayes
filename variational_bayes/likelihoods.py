@@ -156,6 +156,8 @@ class GammaLikelihood(Likelihood):
                 'log': self._es('shape', 1) - 1,
                 'mean': - self._es('scale', 1),
             }
+        elif variable in ('shape', 'scale'):
+            raise NotImplementedError
         else:
             raise KeyError(variable)
 
@@ -177,6 +179,8 @@ class CategoricalLikelihood(Likelihood):
             return {
                 'mean': self._es('proba', 'log')
             }
+        elif variable in ('proba'):
+            raise NotImplementedError
         else:
             raise KeyError(variable)
 
@@ -262,6 +266,8 @@ class WishartLikelihood(Likelihood):
                 'logdet': 0.5 * (self._es('shape', 1) - p - 1) * np.ones(scale_1.shape[:-2]),
                 'mean': -0.5 * scale_1,
             }
+        elif variable in ('shape', 'scale'):
+            raise NotImplementedError
         else:
             raise KeyError(variable)
 
