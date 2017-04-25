@@ -28,3 +28,19 @@ def plot_proba(distribution, start=None, stop=None, num=50, scale=3, reference=N
             ax.axvline(value, color=line.get_color())
 
     return lines
+
+
+def plot_comparison(distribution, reference, scale=3, diagonal=True, aspect=None, ax=None,
+                    **kwargs):
+    default_kwargs = {
+        'ls': 'none',
+    }
+    default_kwargs.update(kwargs)
+    ax = ax or plt.gca()
+    if aspect:
+        ax.set_aspect(aspect)
+    if diagonal:
+        xy = np.min(reference), np.max(reference)
+        ax.plot(xy, xy, ls=':')
+    return ax.errorbar(reference.ravel(), distribution.mean.ravel(), distribution.std.ravel() *
+                       scale, **default_kwargs)

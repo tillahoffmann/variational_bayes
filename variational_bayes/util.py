@@ -5,30 +5,12 @@ import scipy.special
 
 
 def softmax(x):
-    x = np.exp(x - np.max(x))
+    x = np.exp(x - np.max(x, axis=-1)[..., None])
     return x / np.sum(x, axis=-1)[..., None]
 
 
-def aggregate_coefficients(coefficients):
-    """
-    Aggregate coefficient dictionaries.
-
-    Parameters
-    ----------
-    coefficients : list[dict]
-        sequence of coefficient dictionaries
-
-    Returns
-    -------
-    aggregate : dict
-        aggregated coefficients
-    """
-    aggregate = collections.defaultdict(lambda: 0)
-    for current in coefficients:
-        for key, value in current.items():
-            aggregate[key] += value
-
-    return aggregate
+def multidigamma(x, p):
+    return np.sum(scipy.special.digamma(x[..., None] - 0.5 * np.arange(p)), axis=-1)
 
 
 class Container:
@@ -48,6 +30,10 @@ class Container:
 
 class BaseDistribution(Container):
     pass
+
+
+def assert_constant(x):
+    assert not isinstance(x, BaseDistribution), "variable must be a constant"
 
 
 _statistic_names = {
@@ -85,6 +71,10 @@ def evaluate_statistic(x, statistic):
         return np.log(x)
     elif statistic == 'gammaln':
         return scipy.special.gammaln(x)
+    elif statistic == 'outer':
+        return x[..., :, None] * x[..., None, :]
+    elif statistic == 'logdet':
+        return np.linalg.slogdet(x)[1]
     else:
         raise KeyError(statistic)
 

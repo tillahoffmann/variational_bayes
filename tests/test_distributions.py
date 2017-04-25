@@ -9,7 +9,13 @@ def batch_shape(request):
     return request.param
 
 
-@pytest.fixture(params=[vb.NormalDistribution, vb.GammaDistribution, vb.CategoricalDistribution])
+@pytest.fixture(params=[
+    vb.NormalDistribution,
+    vb.GammaDistribution,
+    vb.CategoricalDistribution,
+    vb.MultiNormalDistribution,
+    vb.WishartDistribution,
+])
 def distribution(request, batch_shape):
     cls = request.param
     if cls is vb.NormalDistribution:
@@ -18,6 +24,12 @@ def distribution(request, batch_shape):
         return cls(np.random.gamma(1, 1, batch_shape), np.random.gamma(1, 1, batch_shape))
     elif cls is vb.CategoricalDistribution:
         return cls(np.random.dirichlet(np.ones(3), batch_shape))
+    elif cls is vb.MultiNormalDistribution:
+        return cls(np.random.normal(0, 1, batch_shape + (3,)),
+                   scipy.stats.wishart.rvs(3, np.eye(3), size=batch_shape or 1))
+    elif cls is vb.WishartDistribution:
+        return cls(3 + np.random.gamma(1, 1, batch_shape),
+                   scipy.stats.wishart.rvs(3, np.eye(3), size=batch_shape or 1))
     else:
         raise KeyError(cls)
 
@@ -32,6 +44,11 @@ def scipy_distribution(batch_shape, distribution):
         return scipy.stats.gamma(distribution['shape'], scale=1.0 / distribution['scale'])
     elif isinstance(distribution, vb.CategoricalDistribution):
         return scipy.stats.multinomial(1, distribution['proba'])
+    elif isinstance(distribution, vb.MultiNormalDistribution):
+        return scipy.stats.multivariate_normal(distribution['mean'],
+                                               np.linalg.inv(distribution['precision']))
+    elif isinstance(distribution, vb.WishartDistribution):
+        return scipy.stats.wishart(distribution['shape'], np.linalg.inv(distribution['scale']))
     else:
         raise KeyError(distribution)
 
@@ -79,3 +96,34 @@ def test_compare_statistics(distribution, scipy_distribution):
             np.testing.assert_array_less(z, 5, "statistic '%s' of %s does not match the scipy "
                                          "implementation at five sigma: expected %s +- %s but got "
                                          "%s" % (statistic, distribution, mean, std, actual))
+
+def test_log_proba(distribution, scipy_distribution):
+    x = scipy_distribution.rvs()
+    actual = distribution.log_proba(x)
+    if hasattr(scipy_distribution, 'logpdf'):
+        desired = scipy_distribution.logpdf(x)
+    elif hasattr(scipy_distribution, 'logpmf'):
+        desired = scipy_distribution.logpmf(x)
+    else:
+        raise RuntimeError('cannot evaluate proba of scipy distribution')
+
+    np.testing.assert_allclose(actual, desired, err_msg="failed to reproduce log proba for %s" %
+                               distribution)
+
+
+def test_natural_parameters(distribution):
+    likelihood = distribution.likelihood_cls(distribution, **distribution._attributes)
+    for key in likelihood._attributes:
+        try:
+            parameters = likelihood.natural_parameters(key)
+            # Make sure the shapes of the natural parameters match the sufficient statistics
+            if key == 'x':
+                for key, value in parameters.items():
+                    assert value.shape == getattr(distribution, key).shape, "shape of %s does not " \
+                        "match" % key
+            else:
+                # Make sure the values are finite
+                for key, value in parameters.items():
+                    assert np.all(np.isfinite(value)), "%s is not finite" % key
+        except NotImplementedError:
+            pass

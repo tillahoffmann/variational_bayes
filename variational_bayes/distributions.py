@@ -37,7 +37,7 @@ class Distribution(BaseDistribution):
         """list[str] : names of supported statistics"""
         return [p for p in dir(self.__class__) if isinstance(getattr(self.__class__, p), statistic)]
 
-    def aggregate_coefficients(self, args):
+    def aggregate_natural_parameters(self, args):
         """
         Aggregate coefficients of (sufficient) statistics.
 
@@ -72,7 +72,7 @@ class Distribution(BaseDistribution):
         coefficients : list[dict]
             coefficients of sufficient statistics keyed by name, e.g. 'mean', 'square', etc.
         """
-        parameters = self.coefficients_to_parameters(coefficients)
+        parameters = self.natural_to_canonical(coefficients)
         self.likelihood_cls.assert_valid_parameters(parameters)
         for key, value in parameters.items():
             assert np.shape(value) == np.shape(self[key]), "cannot update parameter '%s': expected " \
@@ -90,6 +90,8 @@ class Distribution(BaseDistribution):
             'mean': self.sample_ndim,
             'square': self.sample_ndim,
             'log': self.sample_ndim,
+            'outer': self.sample_ndim * 2,
+            'logdet': -1
         }
 
     @statistic
@@ -117,9 +119,10 @@ class Distribution(BaseDistribution):
         """np.ndarray : first moment"""
         raise NotImplementedError
 
-    def coefficients_to_parameters(self, coefficients):
+    def natural_to_canonical(self, coefficients):
         """
-        Convert coefficients of sufficient statistics to parameters of the distribution.
+        Convert natural parameters keyed by name of the corresponding sufficient statistic to
+        canonical parameters used to parametrize the distribution.
         """
         raise NotImplementedError
 
@@ -159,7 +162,7 @@ class NormalDistribution(Distribution):
     def entropy(self):
         return 0.5 * (np.log(2 * np.pi) + 1 - np.log(self['precision']))
 
-    def coefficients_to_parameters(self, coefficients):
+    def natural_to_canonical(self, coefficients):
         precision = - 2 * coefficients['square']
         mean = coefficients['mean'] / precision
         return {
@@ -202,7 +205,7 @@ class GammaDistribution(Distribution):
     def log(self):
         return scipy.special.digamma(self['shape']) - np.log(self['scale'])
 
-    def coefficients_to_parameters(self, coefficients):
+    def natural_to_canonical(self, coefficients):
         return {
             'shape': coefficients['log'] + 1,
             'scale': -coefficients['mean'],
@@ -241,12 +244,92 @@ class CategoricalDistribution(Distribution):
         summands = np.log(np.where(self['proba'] > 0, self['proba'], 1.0))
         return - np.sum(self['proba'] * summands, axis=-1)
 
-    def coefficients_to_parameters(self, coefficients):
+    def natural_to_canonical(self, coefficients):
         return {
             'proba': softmax(coefficients['mean'])
         }
 
 
 class MultiNormalDistribution(Distribution):
-    likelihood_cls = MultinormalLikelihood
+    """
+    Vector normal distribution.
+    """
+    likelihood_cls = MultiNormalLikelihood
     sample_ndim = 1
+
+    def __init__(self, mean, precision):
+        super(MultiNormalDistribution, self).__init__(mean=mean, precision=precision)
+
+    @statistic
+    def mean(self):
+        return self['mean']
+
+    @statistic
+    def cov(self):
+        return np.linalg.inv(self['precision'])
+
+    @statistic
+    def var(self):
+        i = np.arange(self['mean'].shape[-1])
+        return self.cov[..., i, i]
+
+    @statistic
+    def entropy(self):
+        p = np.shape(self.mean)[-1]
+        return 0.5 * p * (np.log(2 * np.pi) + 1) - 0.5 * np.linalg.slogdet(self['precision'])[1]
+
+    @statistic
+    def outer(self):
+        return self.mean[..., None] * self.mean[..., None, :] + self.cov
+
+    def natural_to_canonical(self, coefficients):
+        precision = - 2 * coefficients['outer']
+        cov = np.linalg.inv(precision)
+        return {
+            'precision': precision,
+            'mean': np.einsum('...ij,...j', cov, coefficients['mean'])
+        }
+
+
+class WishartDistribution(Distribution):
+    """
+    Matrix Wishart distribution.
+    """
+    likelihood_cls = WishartLikelihood
+    sample_ndim = 1
+
+    def __init__(self, shape, scale):
+        super(WishartDistribution, self).__init__(shape=shape, scale=scale)
+
+    @statistic
+    def mean(self):
+        return self['shape'][..., None, None] * np.linalg.inv(self['scale'])
+
+    @statistic
+    def entropy(self):
+        p = self['scale'].shape[-1]
+        return 0.5 * p * (p + 1) * np.log(2) + scipy.special.multigammaln(0.5 * self['shape'], p) - 0.5 * \
+            (self['shape'] - p - 1) * multidigamma(0.5 * self['shape'], p) + 0.5 * self['shape'] * \
+            p - 0.5 * (p + 1) * np.linalg.slogdet(self['scale'])[1]
+
+    @statistic
+    def var(self):
+        inv_scale = np.linalg.inv(self['scale'])
+        i = np.arange(inv_scale.shape[-1])
+        diag = inv_scale[..., i, i]
+        return self['shape'][..., None, None] * (np.square(inv_scale) +
+                                                 diag[..., None, :] * diag[..., :, None])
+
+    @statistic
+    def logdet(self):
+        p = self['scale'].shape[-1]
+        return multidigamma(0.5 * self['shape'], p) + p * np.log(2) - \
+            np.linalg.slogdet(self['scale'])[1]
+
+    def natural_to_canonical(self, coefficients):
+        p = coefficients['mean'].shape[-1]
+        return {
+            'shape': 2 * (coefficients['logdet'] + p + 1),
+            'scale': - 2 * coefficients['mean'],
+        }
+

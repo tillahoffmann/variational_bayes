@@ -9,4 +9,3 @@ def test_softmax(shape):
     proba = vb.softmax(x)
     np.testing.assert_array_less(0, proba)
     np.testing.assert_allclose(np.sum(proba, axis=-1), 1)
-
