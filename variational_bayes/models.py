@@ -37,11 +37,13 @@ class Model(Container):
         for _ in steps:
             # Update each factor
             for name, factor in self._attributes.items():
-                coefficients = factor.aggregate_coefficients(
-                    [likelihood.evaluate_coefficients(factor) for likelihood in self._likelihoods]
+                # These are the messages in variational message passing
+                natural_parameters = factor.aggregate_natural_parameters(
+                    [likelihood.natural_parameters(factor) for likelihood in self._likelihoods]
                 )
-                assert coefficients, "failed to update '%s' because coefficients are missing" % name
-                factor.update(coefficients)
+                assert natural_parameters, "failed to update '%s' because natural parameters are " \
+                    "missing" % name
+                factor.update(natural_parameters)
 
             elbo.append(self.elbo)
 

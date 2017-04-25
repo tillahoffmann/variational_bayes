@@ -5,8 +5,12 @@ import scipy.special
 
 
 def softmax(x):
-    x = np.exp(x - np.max(x))
+    x = np.exp(x - np.max(x, axis=-1)[..., None])
     return x / np.sum(x, axis=-1)[..., None]
+
+
+def multidigamma(x, p):
+    return np.sum(scipy.special.digamma(x[..., None] - 0.5 * np.arange(p)), axis=-1)
 
 
 def aggregate_coefficients(coefficients):
@@ -50,6 +54,10 @@ class BaseDistribution(Container):
     pass
 
 
+def assert_constant(x):
+    assert not isinstance(x, BaseDistribution), "variable must be a constant"
+
+
 _statistic_names = {
     1: 'mean',
     2: 'square',
@@ -85,6 +93,10 @@ def evaluate_statistic(x, statistic):
         return np.log(x)
     elif statistic == 'gammaln':
         return scipy.special.gammaln(x)
+    elif statistic == 'outer':
+        return x[..., :, None] * x[..., None, :]
+    elif statistic == 'logdet':
+        return np.linalg.slogdet(x)[1]
     else:
         raise KeyError(statistic)
 
