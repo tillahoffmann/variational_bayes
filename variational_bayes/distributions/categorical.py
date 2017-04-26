@@ -34,7 +34,7 @@ class CategoricalDistribution(Distribution):
         vector of probabilities
     """
     sample_ndim = 1
-    _likelihood = CategoricalLikelihood
+    likelihood = CategoricalLikelihood
 
     def __init__(self, proba):
         super(CategoricalDistribution, self).__init__(proba=proba)

@@ -1,4 +1,3 @@
-import numbers
 import numpy as np
 
 from .util import s, Likelihood
@@ -112,7 +111,7 @@ class InteractingMixtureLikelihood(Likelihood):
         # Collapse the trailing dimensions
         likelihood = sum_trailing_dims(likelihood, 4)
 
-        # Iterate over the nodes
+        # Iterate over the observations
         for i in range(n):
             # Initialize the natural parameters for this observation
             _np = natural_parameters[i]
@@ -120,9 +119,10 @@ class InteractingMixtureLikelihood(Likelihood):
             _np += np.diag(likelihood[i, i])
             # Add the interaction terms
             _np += np.einsum('jb,jab', proba, likelihood[i])
-            # Subtract the self interaction (we shouldn't have added this term in the first place)
+            # Subtract the self interaction (we shouldn't have added this term in the first place
+            # but the summation is easier this way)
             _np -= np.sum(likelihood[i, i], axis=1)
-            # Set the probability of the node
+            # Set the probability of the observations
             proba[i] = softmax(_np)
 
         return CategoricalDistribution(proba)

@@ -26,16 +26,16 @@ class Distribution:
     Base class for distributions that act as factors in the approximate posterior.
     """
     sample_ndim = None
-    _likelihood = None
+    likelihood = None
 
     def __init__(self, **parameters):
         self._statistics = {}
-        self._parameters = {key: np.asarray(value) for key, value in parameters.items()}
+        self.parameters = {key: np.asarray(value) for key, value in parameters.items()}
         self.assert_valid_parameters()
 
     def __getattr__(self, name):
-        if name.strip('_') in self._parameters:
-            return self._parameters[name.strip('_')]
+        if name.strip('_') in self.parameters:
+            return self.parameters[name.strip('_')]
         else:
             raise AttributeError(name)
 
@@ -115,8 +115,8 @@ class Distribution:
         raise NotImplementedError
 
     def log_proba(self, x):
-        assert self._likelihood is not None, "likelihood is not defined for %s" % self
-        return self._likelihood.evaluate(x, **self._parameters)
+        assert self.likelihood is not None, "likelihood is not defined for %s" % self
+        return self.likelihood.evaluate(x, **self.parameters)
 
 
 class Likelihood:
@@ -168,6 +168,8 @@ def evaluate_statistic(x, statistic):
         return x[..., :, None] * x[..., None, :]
     elif statistic == 'logdet':
         return np.linalg.slogdet(x)[1]
+    elif statistic == 'log1m':
+        return np.log1p(-x)
     else:
         raise KeyError(statistic)
 
@@ -175,5 +177,6 @@ def evaluate_statistic(x, statistic):
 s = evaluate_statistic
 
 
-def assert_constant(x):
-    assert not isinstance(x, Distribution), "variable must be a constant"
+def assert_constant(*args):
+    for x in args:
+        assert not isinstance(x, Distribution), "variable must be a constant"

@@ -37,7 +37,7 @@ class GammaDistribution(Distribution):
         scale parameter
     """
     sample_ndim = 0
-    _likelihood = GammaLikelihood
+    likelihood = GammaLikelihood
 
     def __init__(self, shape, scale):
         super(GammaDistribution, self).__init__(shape=shape, scale=scale)

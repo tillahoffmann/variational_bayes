@@ -47,7 +47,7 @@ class NormalDistribution(Distribution):
         precision or inverse variance of the distribution
     """
     sample_ndim = 0
-    _likelihood = NormalLikelihood
+    likelihood = NormalLikelihood
 
     def __init__(self, mean, precision):
         super(NormalDistribution, self).__init__(mean=mean, precision=precision)

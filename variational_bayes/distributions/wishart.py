@@ -1,6 +1,6 @@
 import operator
 import numpy as np
-import scipy.special
+from scipy.special import multigammaln
 
 from .util import Distribution, statistic, s, assert_constant, Likelihood
 from ..util import multidigamma, diag
@@ -14,7 +14,7 @@ class WishartLikelihood(Likelihood):
         p = scale.shape[-1]
         return 0.5 * s(x, 'logdet') * (shape - p - 1.0) - 0.5 * \
             np.sum(scale * s(x, 1), axis=(-1, -2)) - 0.5 * shape * p * np.log(2) - \
-            scipy.special.multigammaln(0.5 * shape, p) + 0.5 * shape * s(scale, 'logdet')
+            multigammaln(0.5 * shape, p) + 0.5 * shape * s(scale, 'logdet')
 
     @staticmethod
     def natural_parameters(variable, x, shape, scale):  # pylint: disable=W0221
@@ -35,7 +35,7 @@ class WishartDistribution(Distribution):
     Matrix Wishart distribution.
     """
     sample_ndim = 1
-    _likelihood = WishartLikelihood
+    likelihood = WishartLikelihood
 
     def __init__(self, shape, scale):
         super(WishartDistribution, self).__init__(shape=shape, scale=scale)
@@ -55,7 +55,7 @@ class WishartDistribution(Distribution):
     @statistic
     def entropy(self):
         p = self._scale.shape[-1]
-        return 0.5 * p * (p + 1) * np.log(2) + scipy.special.multigammaln(0.5 * self._shape, p) - \
+        return 0.5 * p * (p + 1) * np.log(2) + multigammaln(0.5 * self._shape, p) - \
             0.5 * (self._shape - p - 1) * multidigamma(0.5 * self._shape, p) + 0.5 * self._shape * \
             p - 0.5 * (p + 1) * self._logdet_scale
 

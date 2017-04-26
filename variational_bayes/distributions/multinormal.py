@@ -43,7 +43,7 @@ class MultiNormalDistribution(Distribution):
     Vector normal distribution.
     """
     sample_ndim = 1
-    _likelihood = MultiNormalLikelihood
+    likelihood = MultiNormalLikelihood
 
     def __init__(self, mean, precision):
         super(MultiNormalDistribution, self).__init__(mean=mean, precision=precision)

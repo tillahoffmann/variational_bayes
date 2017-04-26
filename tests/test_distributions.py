@@ -15,6 +15,8 @@ def batch_shape(request):
     vb.CategoricalDistribution,
     vb.MultiNormalDistribution,
     vb.WishartDistribution,
+    vb.BetaDistribution,
+    vb.BernoulliDistribution,
 ])
 def distribution(request, batch_shape):
     cls = request.param
@@ -30,6 +32,10 @@ def distribution(request, batch_shape):
     elif cls is vb.WishartDistribution:
         return cls(3 + np.random.gamma(1, 1, batch_shape),
                    scipy.stats.wishart.rvs(3, np.eye(3), size=batch_shape or 1))
+    elif cls is vb.BetaDistribution:
+        return cls(np.random.gamma(1, 1, batch_shape), np.random.gamma(1, 1, batch_shape))
+    elif cls is vb.BernoulliDistribution:
+        return cls(np.random.uniform(0, 1, batch_shape))
     else:
         raise KeyError(cls)
 
@@ -50,6 +56,10 @@ def scipy_distribution(batch_shape, distribution):
     elif isinstance(distribution, vb.WishartDistribution):
         return scipy.stats.wishart(np.asscalar(distribution._shape),
                                    np.linalg.inv(distribution._scale))
+    elif isinstance(distribution, vb.BetaDistribution):
+        return scipy.stats.beta(distribution._a, distribution._b)
+    elif isinstance(distribution, vb.BernoulliDistribution):
+        return scipy.stats.bernoulli(distribution._proba)
     else:
         raise KeyError(distribution)
 
@@ -101,22 +111,49 @@ def test_compare_statistics(distribution, scipy_distribution):
 def test_log_proba(distribution, scipy_distribution):
     x = scipy_distribution.rvs()
     actual = distribution.log_proba(x)
-    if hasattr(scipy_distribution, 'logpdf'):
-        desired = scipy_distribution.logpdf(x)
-    elif hasattr(scipy_distribution, 'logpmf'):
-        desired = scipy_distribution.logpmf(x)
-    else:
-        raise RuntimeError('cannot evaluate proba of scipy distribution')
+
+    desired = None
+    for method in ['logpdf', 'logpmf']:
+        if hasattr(scipy_distribution, method):
+            try:
+                desired = getattr(scipy_distribution, method)(x)
+                break
+            except AttributeError:
+                pass
+
+    assert desired is not None, 'cannot evaluate proba of scipy distribution'
 
     np.testing.assert_allclose(actual, desired, err_msg="failed to reproduce log proba for %s" %
                                distribution)
 
 
+def test_natural_parameters_roundtrip(distribution):
+    # Get the natural parameters
+    natural_parameters = distribution.likelihood.natural_parameters(
+        'x', distribution, **distribution.parameters
+    )
+
+    # Check the exact shape
+    for key, value in natural_parameters.items():
+        assert value.shape == getattr(distribution, key).shape, "shape of %s does not " \
+            "match" % key
+
+    # Reconstruct the distribution
+    reconstructed = distribution.__class__.from_natural_parameters(natural_parameters)
+
+    assert set(reconstructed.parameters) == set(distribution.parameters), \
+        "reconstructed %s has different parameters" % reconstructed
+
+    for key, value in reconstructed.parameters.items():
+        np.testing.assert_allclose(value, distribution.parameters[key],
+                                   err_msg="failed to reconstruct %s of %s" % (key, distribution))
+
+
 def test_natural_parameters(distribution):
-    for variable in list(distribution._parameters) + ['x']:
+    for variable in list(distribution.parameters):
         try:
-            natural_parameters = distribution._likelihood.natural_parameters(
-                variable, distribution, **distribution._parameters
+            natural_parameters = distribution.likelihood.natural_parameters(
+                variable, distribution, **distribution.parameters
             )
 
             # Validate the natural parameters
@@ -127,21 +164,5 @@ def test_natural_parameters(distribution):
                 ndim = min(value.ndim, distribution.mean.ndim)
                 assert value.shape[:ndim] == distribution.mean.shape[:ndim], "%s does not match " \
                     "leading shape" % key
-
-                # Check the exact shape
-                if variable == 'x':
-                    assert value.shape == getattr(distribution, key).shape, "shape of %s does not " \
-                        "match" % key
-
-            # Reconstruct the distribution
-            if variable == 'x':
-                reconstructed = distribution.__class__.from_natural_parameters(natural_parameters)
-                assert set(reconstructed._parameters) == set(distribution._parameters), \
-                    "reconstructed %s has different parameters" % reconstructed
-
-                for key, value in reconstructed._parameters.items():
-                    np.testing.assert_allclose(value, distribution._parameters[key],
-                                               err_msg="failed to reconstruct %s of %s" %
-                                               (key, distribution))
         except NotImplementedError:
             pass
