@@ -17,6 +17,7 @@ def batch_shape(request):
     vb.WishartDistribution,
     vb.BetaDistribution,
     vb.BernoulliDistribution,
+    vb.DirichletDistribution,
 ])
 def distribution(request, batch_shape):
     cls = request.param
@@ -36,6 +37,8 @@ def distribution(request, batch_shape):
         return cls(np.random.gamma(5, 1, batch_shape), np.random.gamma(5, 1, batch_shape))
     elif cls is vb.BernoulliDistribution:
         return cls(np.random.uniform(0, 1, batch_shape))
+    elif cls is vb.DirichletDistribution:
+        return cls(np.random.gamma(5, 1, batch_shape + (3,)))
     else:
         raise KeyError(cls)
 
@@ -60,6 +63,8 @@ def scipy_distribution(batch_shape, distribution):
         return scipy.stats.beta(distribution._a, distribution._b)
     elif isinstance(distribution, vb.BernoulliDistribution):
         return scipy.stats.bernoulli(distribution._proba)
+    elif isinstance(distribution, vb.DirichletDistribution):
+        return scipy.stats.dirichlet(distribution._alpha)
     else:
         raise KeyError(distribution)
 
@@ -110,6 +115,9 @@ def test_compare_statistics(distribution, scipy_distribution):
 
 def test_log_proba(distribution, scipy_distribution):
     x = scipy_distribution.rvs()
+    # For some reason, scipy can't handle its own RVs as input
+    if isinstance(distribution, vb.DirichletDistribution):
+        x = x[0]
     actual = distribution.log_proba(x)
 
     desired = None
