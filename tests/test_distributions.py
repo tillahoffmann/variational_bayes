@@ -33,7 +33,7 @@ def distribution(request, batch_shape):
         return cls(3 + np.random.gamma(1, 1, batch_shape),
                    scipy.stats.wishart.rvs(3, np.eye(3), size=batch_shape or 1))
     elif cls is vb.BetaDistribution:
-        return cls(np.random.gamma(1, 1, batch_shape), np.random.gamma(1, 1, batch_shape))
+        return cls(np.random.gamma(5, 1, batch_shape), np.random.gamma(5, 1, batch_shape))
     elif cls is vb.BernoulliDistribution:
         return cls(np.random.uniform(0, 1, batch_shape))
     else:
@@ -166,3 +166,19 @@ def test_natural_parameters(distribution):
                     "leading shape" % key
         except NotImplementedError:
             pass
+
+
+@pytest.mark.parametrize('extra_dims', [0, 1, 2])
+def test_aggregate_natural_paramters(distribution, extra_dims):
+    # Get the natural parameters
+    natural_parameters = distribution.likelihood.natural_parameters(
+        'x', distribution, **distribution.parameters
+    )
+    # Add extra dimensions to the natural parameters
+    x = {key : np.reshape(value, (1,) * extra_dims + value.shape)
+         for key, value in natural_parameters.items()}
+
+    actual = distribution.aggregate_natural_parameters([x])
+
+    for key, value in natural_parameters.items():
+        np.testing.assert_allclose(actual[key], value, err_msg='failed to aggregate %s' % key)

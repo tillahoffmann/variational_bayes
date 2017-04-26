@@ -3,6 +3,8 @@ import collections
 import numpy as np
 import scipy.special
 
+from ..util import sum_leading_dims
+
 
 class statistic:
     """
@@ -66,7 +68,7 @@ class Distribution:
             for key, value in coefficients.items():
                 # Aggregate coefficients over all leading dimensions except the batch dimension
                 # of the distribution and the dimensionality of the statistic
-                aggregate[key] += aggregate_leading_dims(
+                aggregate[key] += sum_leading_dims(
                     value, self.batch_ndim + self.statistic_ndim(key)
                 )
         return aggregate
@@ -77,7 +79,16 @@ class Distribution:
         return np.ndim(self.mean) - self.sample_ndim
 
     def statistic_ndim(self, statistic):
-        pass
+        if statistic in ('mean', 'square', 'log', 'log1m'):
+            return self.sample_ndim
+        elif statistic in ('outer', ):
+            assert self.sample_ndim == 1, "outer is only supported for vector distributions"
+            return 2
+        elif statistic in ('logdet', ):
+            # -1 because the only dimensions that remain for 'logdet' are the batch dimensions
+            return -1
+        else:
+            raise KeyError(statistic)
 
     @statistic
     def std(self):
