@@ -21,9 +21,10 @@ class BernoulliLikelihood(Likelihood):
                 'mean': s(proba, 'log') - s(proba, 'log1m')
             }
         elif variable == 'proba':
+            ones = np.ones(np.broadcast(s(x, 1), s(proba, 1)).shape)
             return {
-                'log': s(x, 1),
-                'log1m': 1 - s(x, 1)
+                'log': s(x, 1) * ones,
+                'log1m': 1 - s(x, 1) * ones
             }
         else:
             raise KeyError(variable)
