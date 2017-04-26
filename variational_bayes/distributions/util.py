@@ -79,11 +79,13 @@ class Distribution:
         aggregate : dict
             aggregated coefficients keyed by statistic name
         """
-        aggregate = collections.defaultdict(lambda: 0)
-        # Iterate over all coefficients in the list
-        for coefficients in args:
+        aggregate = {}
+        # Iterate over all natural parameters in the list
+        for natural_parameters in args:
             # Iterate over all statistics
-            for key, value in coefficients.items():
+            for key, value in natural_parameters.items():
+                if key not in aggregate:
+                    aggregate[key] = 0
                 # Aggregate coefficients over all leading dimensions except the batch dimension
                 # of the distribution and the dimensionality of the statistic
                 aggregate[key] += sum_leading_dims(
@@ -218,6 +220,8 @@ def evaluate_statistic(x, statistic):
         return np.linalg.slogdet(x)[1]
     elif statistic == 'log1m':
         return np.log1p(-x)
+    elif statistic == 'cov':
+        return np.zeros(x.shape + (x.shape[-1], ))
     else:
         raise KeyError(statistic)
 
