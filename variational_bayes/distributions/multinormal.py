@@ -5,6 +5,9 @@ from ..util import diag
 
 
 class MultiNormalLikelihood(Likelihood):
+    def __init__(self, x, mean, precision):
+        super(MultiNormalLikelihood, self).__init__(x=x, mean=mean, precision=precision)
+
     @staticmethod
     def evaluate(x, mean, precision):  # pylint: disable=W0221
         _cross = s(mean, 1)[..., None, :] * s(x, 1)[..., :, None]
@@ -30,7 +33,7 @@ class MultiNormalLikelihood(Likelihood):
         elif variable == 'precision':
             _cross = s(x, 1)[..., None, :] * s(mean, 1)[..., :, None]
             return {
-                'log': 0.5 * ones[..., 0],
+                'logdet': 0.5 * ones[..., 0],
                 'mean': - 0.5 * (s(x, 'outer') + s(mean, 'outer') -
                                  _cross - np.swapaxes(_cross, -1, -2))
             }
@@ -69,12 +72,15 @@ class MultiNormalDistribution(Distribution):
     def outer(self):
         return self.mean[..., None] * self.mean[..., None, :] + self.cov
 
-    @classmethod
-    def from_natural_parameters(cls, natural_parameters):
+    @staticmethod
+    def canonical_parameters(natural_parameters):
         precision = - 2 * natural_parameters['outer']
         cov = np.linalg.inv(precision)
         mean = np.einsum('...ij,...j', cov, natural_parameters['mean'])
-        return cls(mean, precision)
+        return {
+            'mean': mean,
+            'precision': precision,
+        }
 
     def assert_valid_parameters(self):
         assert self._mean.ndim > 0, "the mean must be at least one-dimensional"
