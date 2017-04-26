@@ -190,3 +190,7 @@ def test_aggregate_natural_paramters(distribution, extra_dims):
 
     for key, value in natural_parameters.items():
         np.testing.assert_allclose(actual[key], value, err_msg='failed to aggregate %s' % key)
+
+
+def test_likelihood(distribution):
+    likelihood = distribution.likelihood(distribution, **distribution.parameters)

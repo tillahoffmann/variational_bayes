@@ -5,6 +5,9 @@ from .util import Distribution, s, statistic, assert_constant, Likelihood
 
 
 class GammaLikelihood(Likelihood):
+    def __init__(self, x, shape, scale):
+        super(GammaLikelihood, self).__init__(x=x, shape=shape, scale=scale)
+
     @staticmethod
     def evaluate(x, shape, scale):  # pylint: disable=W0221
         assert_constant(shape)
@@ -59,11 +62,12 @@ class GammaDistribution(Distribution):
     def log(self):
         return scipy.special.digamma(self._shape) - np.log(self._scale)
 
-    @classmethod
-    def from_natural_parameters(cls, natural_parameters):
-        shape = natural_parameters['log'] + 1
-        scale = -natural_parameters['mean']
-        return cls(shape, scale)
+    @staticmethod
+    def canonical_parameters(natural_parameters):
+        return {
+            'shape': natural_parameters['log'] + 1,
+            'scale': -natural_parameters['mean']
+        }
 
     def assert_valid_parameters(self):
         assert self._shape.shape == self._scale.shape, "shape of shape and scale must match"

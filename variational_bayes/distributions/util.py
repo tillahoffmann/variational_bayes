@@ -31,9 +31,27 @@ class Distribution:
     likelihood = None
 
     def __init__(self, **parameters):
+        # Define a cache for statistics
         self._statistics = {}
         self.parameters = {key: np.asarray(value) for key, value in parameters.items()}
         self.assert_valid_parameters()
+
+    def update(self, canonical_parameters):
+        # Clear the statistics cache
+        self._statistics.clear()
+        # Update the canonical parameters
+        for key, value in canonical_parameters.items():
+            assert key in self.parameters, "parameter %s is not part of %s" % (key, self)
+            actual = np.shape(value)
+            desired = np.shape(self.parameters[key])
+            assert actual == desired, "cannot update %s of %s: expected shape %s but got %s" % \
+                (key, self, desired, actual)
+            self.parameters[key] = np.asarray(value)
+
+        self.assert_valid_parameters()
+
+    def update_from_natural_parameters(self, natural_parameters):
+        self.update(self.canonical_parameters(natural_parameters))
 
     def __getattr__(self, name):
         if name.strip('_') in self.parameters:
@@ -115,12 +133,19 @@ class Distribution:
         """np.ndarray : first moment"""
         raise NotImplementedError
 
+    @staticmethod
+    def canonical_parameters(natural_parameters):
+        """
+        Obtain canonical parameters used to parametrize the distribution from natural parameters.
+        """
+        raise NotImplementedError
+
     @classmethod
     def from_natural_parameters(cls, natural_parameters):
         """
         Create a distribution from natural parameters.
         """
-        raise NotImplementedError
+        return cls(**cls.canonical_parameters(natural_parameters))
 
     def assert_valid_parameters(self):
         raise NotImplementedError
@@ -131,6 +156,18 @@ class Distribution:
 
 
 class Likelihood:
+    def __init__(self, **parameters):
+        self.parameters = parameters
+
+    def parameter_name(self, x):
+        """
+        Get the parameter name of `x`.
+        """
+        for key, value in self.parameters.items():
+            if value is x:
+                return key
+        return None
+
     @staticmethod
     def evaluate(x, *parameters):
         raise NotImplementedError

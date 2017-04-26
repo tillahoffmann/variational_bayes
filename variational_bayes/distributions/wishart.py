@@ -7,6 +7,9 @@ from ..util import multidigamma, diag
 
 
 class WishartLikelihood(Likelihood):
+    def __init__(self, x, shape, scale):
+        super(WishartLikelihood, self).__init__(x=x, shape=shape, scale=scale)
+
     @staticmethod
     def evaluate(x, shape, scale):   # pylint: disable=W0221
         assert_constant(shape)
@@ -70,12 +73,15 @@ class WishartDistribution(Distribution):
         p = self._scale.shape[-1]
         return multidigamma(0.5 * self._shape, p) + p * np.log(2) - self._logdet_scale
 
-    @classmethod
-    def from_natural_parameters(cls, natural_parameters):
+    @staticmethod
+    def canonical_parameters(natural_parameters):
         p = natural_parameters['mean'].shape[-1]
         shape = 2 * natural_parameters['logdet'] + p + 1
         scale = - 2 * natural_parameters['mean']
-        return cls(shape, scale)
+        return {
+            'shape': shape,
+            'scale': scale,
+        }
 
     def assert_valid_parameters(self):
         assert np.ndim(self._shape) + 2 == np.ndim(self._scale), "scale parameter must have " \

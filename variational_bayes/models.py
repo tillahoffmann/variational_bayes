@@ -3,17 +3,20 @@ import numbers
 from .util import *
 
 
-class Model(Container):
+class Model:
     """
     Model combining factors of the posterior and likelihoods.
     """
     def __init__(self, factors, likelihoods):
-        super(Model, self).__init__(**factors)
+        self._factors = factors
         self._likelihoods = likelihoods
+
+    def __getitem__(self, name):
+        return self._factors[name]
 
     def update(self, steps, tqdm=None):
         """
-        Update the factors of posterior.
+        Update the factors of the approximate posterior.
 
         Parameters
         ----------
@@ -36,28 +39,57 @@ class Model(Container):
 
         for _ in steps:
             # Update each factor
-            for name, factor in self._attributes.items():
-                # These are the messages in variational message passing
-                natural_parameters = factor.aggregate_natural_parameters(
-                    [likelihood.natural_parameters(factor) for likelihood in self._likelihoods]
-                )
-                assert natural_parameters, "failed to update '%s' because natural parameters are " \
-                    "missing" % name
-                factor.update(natural_parameters)
+            for factor in self._factors:
+                self.update_factor(factor)
 
             elbo.append(self.elbo)
 
         return np.asarray(elbo)
 
+    def natural_parameters(self, factor):
+        """
+        Obtain the natural parameters for a given factor.
+        """
+        if isinstance(factor, str):
+            factor = self._factors[factor]
+        # Iterate over all likelihoods
+        natural_parameters = []
+        for likelihood in self._likelihoods:
+            # Check if this factor is part of the likelihood
+            parameter = likelihood.parameter_name(factor)
+            if parameter:
+                natural_parameters.append(
+                    likelihood.natural_parameters(parameter, **likelihood.parameters)
+                )
+        return natural_parameters
+
+    def aggregate_natural_parameters(self, factor):
+        if isinstance(factor, str):
+            factor = self._factors[factor]
+        return factor.aggregate_natural_parameters(self.natural_parameters(factor))
+
+    def update_factor(self, factor):
+        """
+        Update the given factor.
+        """
+        if isinstance(factor, str):
+            factor = self._factors[factor]
+        # Construct the sequence of natural parameters used to update this factor
+        natural_parameters = self.aggregate_natural_parameters(factor)
+        assert natural_parameters, "failed to update %s because natural parameters are " \
+            "missing" % factor
+        factor.update_from_natural_parameters(natural_parameters)
+
     @property
     def joint(self):
         """float : expected joint distribution"""
-        return np.sum([np.sum(likelihood.evaluate()) for likelihood in self._likelihoods])
+        return np.sum([np.sum(likelihood.evaluate(**likelihood.parameters))
+                       for likelihood in self._likelihoods])
 
     @property
     def entropies(self):
         """list[float] : sequence of entropies"""
-        return {name: factor.entropy for name, factor in self._attributes.items()}
+        return {name: factor.entropy for name, factor in self._factors.items()}
 
     @property
     def entropy(self):

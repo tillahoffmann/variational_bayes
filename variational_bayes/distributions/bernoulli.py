@@ -7,6 +7,9 @@ from ..util import softmax, safe_log
 
 
 class BernoulliLikelihood(Likelihood):
+    def __init__(self, x, proba):
+        super(BernoulliLikelihood, self).__init__(x=x, proba=proba)
+
     @staticmethod
     def evaluate(x, proba):   # pylint: disable=W0221
         return s(x, 1) * s(proba, 'log') + (1 - s(x, 1)) * s(proba, 'log1m')
@@ -51,6 +54,8 @@ class BernoulliDistribution(Distribution):
         np.testing.utils.assert_array_compare(operator.__le__, self._proba, 1,
                                               "probability must be <= 1")
 
-    @classmethod
-    def from_natural_parameters(cls, natural_parameters):
-        return BernoulliDistribution(expit(natural_parameters['mean']))
+    @staticmethod
+    def canonical_parameters(natural_parameters):
+        return {
+            'proba': expit(natural_parameters['mean'])
+        }

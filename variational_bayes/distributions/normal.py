@@ -5,6 +5,9 @@ from .util import Distribution, statistic, s, Likelihood
 
 
 class NormalLikelihood(Likelihood):
+    def __init__(self, x, mean, precision):
+        super(NormalLikelihood, self).__init__(x=x, mean=mean, precision=precision)
+
     @staticmethod
     def evaluate(x, mean, precision):  # pylint: disable=W0221
         return 0.5 * (s(precision, 'log') - np.log(2 * np.pi) - s(precision, 1) * (
@@ -64,11 +67,14 @@ class NormalDistribution(Distribution):
     def entropy(self):
         return 0.5 * (np.log(2 * np.pi) + 1 - np.log(self._precision))
 
-    @classmethod
-    def from_natural_parameters(cls, natural_parameters):
+    @staticmethod
+    def canonical_parameters(natural_parameters):
         precision = - 2 * natural_parameters['square']
         mean = natural_parameters['mean'] / precision
-        return cls(mean, precision)
+        return {
+            'mean': mean,
+            'precision': precision,
+        }
 
     def assert_valid_parameters(self):
         assert np.all(np.isfinite(self._mean)), "mean must be finite"

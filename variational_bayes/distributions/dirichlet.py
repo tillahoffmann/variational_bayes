@@ -5,6 +5,9 @@ from .util import Distribution, Likelihood, s, statistic, assert_constant
 
 
 class DirichletLikelihood(Likelihood):
+    def __init__(self, x, alpha):
+        super(DirichletLikelihood, self).__init__(x=x, alpha=alpha)
+
     @staticmethod
     def evaluate(x, alpha):   # pylint: disable=W0221
         assert_constant(alpha)
@@ -58,6 +61,8 @@ class DirichletDistribution(Distribution):
     def assert_valid_parameters(self):
         np.testing.assert_array_less(0, self._alpha, "concentration parameter must be positive")
 
-    @classmethod
-    def from_natural_parameters(cls, natural_parameters):
-        return DirichletDistribution(natural_parameters['log'] + 1)
+    @staticmethod
+    def canonical_parameters(natural_parameters):
+        return {
+            'alpha': natural_parameters['log'] + 1
+        }

@@ -9,9 +9,12 @@ class MixtureLikelihood(Likelihood):
     """
     Mixture likelihood.
     """
+    def __init__(self, z, likelihood, **kwargs):
+        super(MixtureLikelihood, self).__init__(z=z, likelihood=likelihood, **kwargs)
+
     @staticmethod
-    def evaluate(z, likelihood, *args):   # pylint: disable=W0221
-        likelihood = likelihood.evaluate(*args)
+    def evaluate(z, likelihood, **kwargs):   # pylint: disable=W0221
+        likelihood = likelihood.evaluate(**kwargs)
         z_1 = s(z, 1)
         assert z_1.ndim == 2, "indicator must be two-dimensional"
         assert z_1.shape == likelihood.shape[:2], "leading dimensions of the likelihood %s and " \
@@ -20,10 +23,10 @@ class MixtureLikelihood(Likelihood):
         return np.sum(pad_dims(z_1, likelihood.ndim) * likelihood, axis=1)
 
     @staticmethod
-    def natural_parameters(variable, z, likelihood, *args):  # pylint: disable=W0221
+    def natural_parameters(variable, z, likelihood, **kwargs):  # pylint: disable=W0221
         if variable == 'z':
             # Just evaluate the responsibilities and aggregate any trailing dimensions
-            likelihood = likelihood.evaluate(*args)
+            likelihood = likelihood.evaluate(**kwargs)
             return {
                 'mean': sum_trailing_dims(likelihood, 2),
             }
@@ -32,14 +35,14 @@ class MixtureLikelihood(Likelihood):
             assert z_1.ndim == 2, "indicator must be two-dimensional"
             # Iterate over the natural parameters of the likelihood
             natural_parameters = {}
-            for key, value in likelihood.natural_parameters(variable, *args).items():
+            for key, value in likelihood.natural_parameters(variable, **kwargs).items():
                 # We assume that the natural parameters have shape `(n, k, ...)`, where `n` is the
                 # number of observations, `k` is the number of mixture components, and `...` is the
                 # shape associated with the natural parameter
                 assert z_1.shape == value.shape[:2], "leading dimensions of the natural parameters " \
                     "'%s' %s and the indicators %s must match" % (key, value.shape, z_1.shape)
-                # Sum over the indicator dimension
-                natural_parameters[key] = np.sum(pad_dims(z_1, value.ndim) * value, axis=1)
+                # Sum over the dimension corresponding to samples
+                natural_parameters[key] = np.sum(pad_dims(z_1, value.ndim) * value, axis=0)
             return natural_parameters
 
 
@@ -49,7 +52,7 @@ class InteractingMixtureLikelihood(Likelihood):
         pass
 
     @staticmethod
-    def natural_parameters(variable, z, likelihood, *args):
+    def natural_parameters(variable, z, likelihood, **kwargs):
         if variable == 'z':
             raise NotImplementedError("Natural parameters for indicators cannot be obtained jointly")
         else:
@@ -62,18 +65,18 @@ class InteractingMixtureLikelihood(Likelihood):
             zz[i, i] += s(z, 'cov')
             # Iterate over the natural parameters of the likelihood
             natural_parameters = {}
-            for key, value in likelihood.natural_parameters(variable, *args).items():
+            for key, value in likelihood.natural_parameters(variable, **kwargs).items():
                 # We assume that the natural parameters have shape `(n, n, k, k, ...)` where `n` is
                 # the number of observations, `k` is the number of mixture components, and `...` is
                 # the shape associated with the natural parameter
                 assert zz.shape == value.shape[:4], "leading dimensions of the natural parameters " \
                     "'%s' %s and the indicators %s must match" % (key, value.shape, zz.shape)
-                # Sum over the indicator dimensions
-                natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, axis=(2, 3))
+                # Sum over the dimensions corresponding to samples
+                natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, axis=(0, 1))
             return natural_parameters
 
     @staticmethod
-    def update_indicators(z, natural_parameters, likelihood, *args):
+    def update_indicators(z, natural_parameters, likelihood, **kwargs):
         """
         Update the indicator variables for component membership.
 
@@ -104,7 +107,7 @@ class InteractingMixtureLikelihood(Likelihood):
             (natural_parameters.shape, proba.shape)
 
         # Evaluate the likelihood
-        likelihood = likelihood.evaluate(*args)
+        likelihood = likelihood.evaluate(**kwargs)
         assert likelihood.ndim >= 4, "evaluated likelihood must have at least four dimensions"
         assert likelihood.shape[:4] == (n, n, k, k), "evaluated likelihood must have leading shape " \
             "%s" % [(n, n, k, k)]

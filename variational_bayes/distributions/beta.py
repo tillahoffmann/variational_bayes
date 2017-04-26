@@ -5,6 +5,9 @@ from .util import Distribution, Likelihood, s, statistic, assert_constant
 
 
 class BetaLikelihood(Likelihood):
+    def __init__(self, x, a, b):
+        super(BetaLikelihood, self).__init__(x=x, a=a, b=b)
+
     @staticmethod
     def evaluate(x, a, b):   # pylint: disable=W0221
         assert_constant(a, b)
@@ -61,8 +64,9 @@ class BetaDistribution(Distribution):
         np.testing.assert_array_less(0, self._a, "first shape parameter must be positive")
         np.testing.assert_array_less(0, self._b, "second shape parameter must be positive")
 
-    @classmethod
-    def from_natural_parameters(cls, natural_parameters):
-        a = natural_parameters['log'] + 1
-        b = natural_parameters['log1m'] + 1
-        return BetaDistribution(a, b)
+    @staticmethod
+    def canonical_parameters(natural_parameters):
+        return {
+            'a': natural_parameters['log'] + 1,
+            'b': natural_parameters['log1m'] + 1
+        }
