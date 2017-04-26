@@ -11,8 +11,8 @@ def distribution(request):
 
 
 def test_plot_proba(distribution):
-    vb.plot_proba(distribution, reference=distribution['mean'])
+    vb.plot_proba(distribution, reference=distribution.mean)
 
 
 def test_plot_comparison(distribution):
-    vb.plot_comparison(distribution, distribution['mean'])
+    vb.plot_comparison(distribution, distribution.mean)
