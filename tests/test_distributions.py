@@ -39,16 +39,17 @@ def scipy_distribution(batch_shape, distribution):
     if batch_shape != tuple():
         pytest.skip()
     elif isinstance(distribution, vb.NormalDistribution):
-        return scipy.stats.norm(distribution['mean'], 1 / np.sqrt(distribution['precision']))
+        return scipy.stats.norm(distribution._mean, 1 / np.sqrt(distribution._precision))
     elif isinstance(distribution, vb.GammaDistribution):
-        return scipy.stats.gamma(distribution['shape'], scale=1.0 / distribution['scale'])
+        return scipy.stats.gamma(distribution._shape, scale=1.0 / distribution._scale)
     elif isinstance(distribution, vb.CategoricalDistribution):
-        return scipy.stats.multinomial(1, distribution['proba'])
+        return scipy.stats.multinomial(1, distribution._proba)
     elif isinstance(distribution, vb.MultiNormalDistribution):
-        return scipy.stats.multivariate_normal(distribution['mean'],
-                                               np.linalg.inv(distribution['precision']))
+        return scipy.stats.multivariate_normal(distribution._mean,
+                                               np.linalg.inv(distribution._precision))
     elif isinstance(distribution, vb.WishartDistribution):
-        return scipy.stats.wishart(distribution['shape'], np.linalg.inv(distribution['scale']))
+        return scipy.stats.wishart(np.asscalar(distribution._shape),
+                                   np.linalg.inv(distribution._scale))
     else:
         raise KeyError(distribution)
 
@@ -112,18 +113,35 @@ def test_log_proba(distribution, scipy_distribution):
 
 
 def test_natural_parameters(distribution):
-    likelihood = distribution.likelihood_cls(distribution, **distribution._attributes)
-    for key in likelihood._attributes:
+    for variable in list(distribution._parameters) + ['x']:
         try:
-            parameters = likelihood.natural_parameters(key)
-            # Make sure the shapes of the natural parameters match the sufficient statistics
-            if key == 'x':
-                for key, value in parameters.items():
+            natural_parameters = distribution._likelihood.natural_parameters(
+                variable, distribution, **distribution._parameters
+            )
+
+            # Validate the natural parameters
+            for key, value in natural_parameters.items():
+                assert value is not None, "%s is None" % key
+                assert np.all(np.isfinite(value)), "%s is not finite" % key
+                # The leading dimensions must match the batch shape of the distribution
+                ndim = min(value.ndim, distribution.mean.ndim)
+                assert value.shape[:ndim] == distribution.mean.shape[:ndim], "%s does not match " \
+                    "leading shape" % key
+
+                # Check the exact shape
+                if variable == 'x':
                     assert value.shape == getattr(distribution, key).shape, "shape of %s does not " \
                         "match" % key
-            else:
-                # Make sure the values are finite
-                for key, value in parameters.items():
-                    assert np.all(np.isfinite(value)), "%s is not finite" % key
+
+            # Reconstruct the distribution
+            if variable == 'x':
+                reconstructed = distribution.__class__.from_natural_parameters(natural_parameters)
+                assert set(reconstructed._parameters) == set(distribution._parameters), \
+                    "reconstructed %s has different parameters" % reconstructed
+
+                for key, value in reconstructed._parameters.items():
+                    np.testing.assert_allclose(value, distribution._parameters[key],
+                                               err_msg="failed to reconstruct %s of %s" %
+                                               (key, distribution))
         except NotImplementedError:
             pass
