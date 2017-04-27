@@ -17,10 +17,14 @@ class statistic:
     def __get__(self, obj, objtype=None):
         if obj is None:
             return self
-        # Add the statistic to the cache if not already present
-        if not self.name in obj._statistics:
-            obj._statistics[self.name] = self.fget(obj)
-        return obj._statistics[self.name]
+        # Get the statistic from the cache if enabled
+        if obj._statistics is not None and self.name in obj._statistics:
+            return obj._statistics[self.name]
+        value = self.fget(obj)
+        # Add the value to the cache
+        if obj._statistics is not None:
+            obj._statistics[self.name] = value
+        return value
 
 
 class Distribution:
@@ -157,16 +161,68 @@ class Distribution:
         return self.likelihood.evaluate(x, **self.parameters)
 
 
+class ReshapedDistribution(Distribution):
+    def __init__(self, distribution, newshape):
+        self._distribution = distribution
+        self._newshape = newshape
+        super(ReshapedDistribution, self).__init__()
+        # Disable the cache
+        self._statistics = None
+
+    def _reshaped_statistic(self, statistic):
+        # Get the statistic
+        value = getattr(self._distribution, statistic)
+        # Determine the new shape by popping leading dimensions until the size of popped dimensions
+        # matches the desired size
+        newsize = np.prod(self._newshape)
+        shape = list(value.shape)
+        size = 1
+        while size < newsize:
+            size *= shape.pop(0)
+
+        # Sanity check
+        assert size == newsize, "cannot reshape leading dimensions"
+        newshape = self._newshape + tuple(shape)
+        return np.reshape(value, newshape)
+
+    @statistic
+    def mean(self):
+        return self._reshaped_statistic('mean')
+
+    @statistic
+    def var(self):
+        return self._reshaped_statistic('var')
+
+    @statistic
+    def entropy(self):
+        return self._reshaped_statistic('entropy')
+
+    @statistic
+    def outer(self):
+        return self._reshaped_statistic('outer')
+
+    def assert_valid_parameters(self):
+        self._distribution.assert_valid_parameters()
+
+    @staticmethod
+    def canonical_parameters(natural_parameters):
+        raise NotImplementedError
+
+
 class Likelihood:
     def __init__(self, **parameters):
-        self.parameters = parameters
+        self.parameters = {key: value if isinstance(value, Distribution) or
+                                (isinstance(value, type) and issubclass(value, Likelihood))
+                                else np.asarray(value) for key, value in parameters.items()}
 
     def parameter_name(self, x):
         """
         Get the parameter name of `x`.
         """
         for key, value in self.parameters.items():
-            if value is x:
+            # Return the name of the parameter if the distribution matches or we have a reshaped
+            # distribution whose parent matches
+            if value is x or (isinstance(value, ReshapedDistribution) and value._distribution is x):
                 return key
         return None
 
