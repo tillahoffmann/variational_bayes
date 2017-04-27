@@ -211,8 +211,9 @@ class ReshapedDistribution(Distribution):
 
 class Likelihood:
     def __init__(self, **parameters):
-        self.parameters = {key: value if isinstance(value, Distribution) else np.asarray(value)
-                           for key, value in parameters.items()}
+        self.parameters = {key: value if isinstance(value, Distribution) or
+                                (isinstance(value, type) and issubclass(value, Likelihood))
+                                else np.asarray(value) for key, value in parameters.items()}
 
     def parameter_name(self, x):
         """
