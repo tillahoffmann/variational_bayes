@@ -218,7 +218,9 @@ class Likelihood:
         Get the parameter name of `x`.
         """
         for key, value in self.parameters.items():
-            if value is x:
+            # Return the name of the parameter if the distribution matches or we have a reshaped
+            # distribution whose parent matches
+            if value is x or (isinstance(value, ReshapedDistribution) and value._distribution is x):
                 return key
         return None
 

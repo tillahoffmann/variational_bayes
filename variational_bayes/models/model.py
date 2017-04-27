@@ -1,7 +1,7 @@
 import numbers
 
 from ..util import *
-from ..distributions import Distribution
+from ..distributions import Distribution, ReshapedDistribution
 
 
 class ConvergencePredicate:
@@ -104,17 +104,23 @@ class Model:
         if isinstance(factor, str):
             factor = self._factors[factor]
         # Iterate over all likelihoods
-        natural_parameters = []
+        args = []
         for likelihood in self._likelihoods:
             if exclude and likelihood in exclude:
                 continue
             # Check if this factor is part of the likelihood
             parameter = likelihood.parameter_name(factor)
             if parameter:
-                natural_parameters.append(
-                    likelihood.natural_parameters(parameter, **likelihood.parameters)
+                # Get the natural parameters
+                natural_parameters = likelihood.natural_parameters(
+                    parameter, **likelihood.parameters
                 )
-        return natural_parameters
+                # Check if the distribution was reshaped and apply the transforms if necessary
+                if isinstance(likelihood.parameters[parameter], ReshapedDistribution):
+                    natural_parameters = {key: np.reshape(value, (-1, *getattr(factor, key).shape))
+                                          for key, value in natural_parameters.items()}
+                args.append(natural_parameters)
+        return args
 
     def aggregate_natural_parameters(self, factor, exclude=None):
         if isinstance(factor, str):
