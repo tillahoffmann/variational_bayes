@@ -1,7 +1,7 @@
 import numbers
 
-from .util import *
-from .distributions import Distribution
+from ..util import *
+from ..distributions import Distribution
 
 
 class ConvergencePredicate:
