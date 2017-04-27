@@ -1,7 +1,15 @@
-.PHONY : tests
+.PHONY : tests clean
 
-all :
-	echo "Configure your own targets here."
+NOTEBOOKS = $(wildcard examples/*.ipynb)
+NOTEBOOK_OUTPUTS = $(NOTEBOOKS:.ipynb=.html)
+
+examples : $(NOTEBOOK_OUTPUTS)
+
+$(NOTEBOOK_OUTPUTS) : %.html : %.ipynb
+	jupyter nbconvert --execute --ExecutePreprocessor.timeout=None --allow-errors $<
+
+clean :
+	rm examples/*.html
 
 tests :
-	py.test -v --cov variational_bayes --cov-report html
+	py.test -v --cov elboflow --cov-report html -rsx
