@@ -105,7 +105,7 @@ class Distribution:
         return np.ndim(self.mean) - self.sample_ndim
 
     def statistic_ndim(self, statistic):
-        if statistic in ('mean', 'square', 'log', 'log1m'):
+        if statistic in ('mean', 'square', 'log', 'log1m', 'value'):
             return self.sample_ndim
         elif statistic in ('outer', ):
             assert self.sample_ndim == 1, "outer is only supported for vector distributions"
@@ -163,6 +163,39 @@ class Distribution:
         return self.likelihood.evaluate(x, **self.parameters)
 
 
+class DeltaDistribution(Distribution):
+    """
+    Delta distribution concentrated on a single value.
+    """
+    sample_ndim = 0
+
+    def __init__(self, value):
+        super(DeltaDistribution, self).__init__(value=value)
+
+    @staticmethod
+    def canonical_parameters(natural_parameters):
+        return natural_parameters
+
+    def assert_valid_parameters(self):
+        pass
+
+    @statistic
+    def entropy(self):
+        return np.zeros_like(self._value)
+
+    @statistic
+    def mean(self):
+        return self._value
+
+    @statistic
+    def var(self):
+        return np.zeros_like(self._value)
+
+    @statistic
+    def value(self):
+        return self._value
+
+
 class ReshapedDistribution(Distribution):
     def __init__(self, distribution, newshape):
         self._distribution = distribution
@@ -214,6 +247,7 @@ class ReshapedDistribution(Distribution):
 _statistic_names = {
     1: 'mean',
     2: 'square',
+    'value': 'mean',
 }
 
 
@@ -262,7 +296,7 @@ s = evaluate_statistic
 
 
 def is_constant(*args):
-    constant = [not isinstance(x, Distribution) for x in args]
+    constant = [not isinstance(x, Distribution) or isinstance(x, DeltaDistribution) for x in args]
     if len(constant) == 1:
         return constant[0]
     else:

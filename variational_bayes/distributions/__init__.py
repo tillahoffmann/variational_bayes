@@ -1,5 +1,4 @@
 from .distribution import *
-from .likelihood import *
 from .normal import *
 from .multinormal import *
 from .gamma import *
@@ -9,3 +8,6 @@ from .mixture import *
 from .beta import *
 from .bernoulli import *
 from .dirichlet import *
+
+from .likelihood import *
+from .regression import *
