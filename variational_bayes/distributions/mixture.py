@@ -1,6 +1,7 @@
 import numpy as np
 
-from .util import s, Likelihood
+from .likelihood import Likelihood
+from .distribution import s
 from .categorical import CategoricalDistribution
 from ..util import pad_dims, sum_trailing_dims, softmax
 

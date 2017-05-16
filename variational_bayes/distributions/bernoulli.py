@@ -2,7 +2,8 @@ import operator
 import numpy as np
 from scipy.special import expit
 
-from .util import Distribution, Likelihood, s, statistic, assert_constant
+from .distribution import Distribution, s, statistic, assert_constant
+from .likelihood import Likelihood
 from ..util import softmax, safe_log
 
 

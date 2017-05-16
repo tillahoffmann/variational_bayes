@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.special import digamma, gammaln
 
-from .util import Distribution, Likelihood, s, statistic, assert_constant
+from .distribution import Distribution, s, statistic, assert_constant
+from .likelihood import Likelihood
 
 
 class BetaLikelihood(Likelihood):

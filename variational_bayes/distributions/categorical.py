@@ -1,7 +1,8 @@
 import operator
 import numpy as np
 
-from .util import Distribution, statistic, s, Likelihood
+from .distribution import Distribution, s, statistic
+from .likelihood import Likelihood
 from ..util import softmax
 
 

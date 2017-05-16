@@ -52,5 +52,17 @@ def pad_dims(x, ndim):
     shape = np.shape(x)
     return np.reshape(x, shape + (1, ) * (ndim - len(shape)))
 
+
 def safe_log(x):
     return np.log(np.where(x == 0, 1, x))
+
+
+def is_positive_definite(x):
+    """
+    Check whether a matrix is positive definite.
+    """
+    try:
+        np.linalg.cholesky(x)
+        return True
+    except np.linalg.LinAlgError:
+        return False

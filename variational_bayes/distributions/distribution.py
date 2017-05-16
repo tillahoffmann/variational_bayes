@@ -55,6 +55,8 @@ class Distribution:
         self.assert_valid_parameters()
 
     def update_from_natural_parameters(self, natural_parameters):
+        if not isinstance(natural_parameters, dict):
+            natural_parameters = self.aggregate_natural_parameters(natural_parameters)
         self.update(self.canonical_parameters(natural_parameters))
 
     def __getattr__(self, name):
@@ -209,32 +211,6 @@ class ReshapedDistribution(Distribution):
         raise NotImplementedError
 
 
-class Likelihood:
-    def __init__(self, **parameters):
-        self.parameters = {key: value if isinstance(value, Distribution) or
-                                (isinstance(value, type) and issubclass(value, Likelihood))
-                                else np.asarray(value) for key, value in parameters.items()}
-
-    def parameter_name(self, x):
-        """
-        Get the parameter name of `x`.
-        """
-        for key, value in self.parameters.items():
-            # Return the name of the parameter if the distribution matches or we have a reshaped
-            # distribution whose parent matches
-            if value is x or (isinstance(value, ReshapedDistribution) and value._distribution is x):
-                return key
-        return None
-
-    @staticmethod
-    def evaluate(x, *parameters):
-        raise NotImplementedError
-
-    @staticmethod
-    def natural_parameters(variable, x, *parameters):
-        raise NotImplementedError
-
-
 _statistic_names = {
     1: 'mean',
     2: 'square',
@@ -285,6 +261,16 @@ def evaluate_statistic(x, statistic):
 s = evaluate_statistic
 
 
+def is_constant(*args):
+    constant = [not isinstance(x, Distribution) for x in args]
+    if len(constant) == 1:
+        return constant[0]
+    else:
+        return constant
+
+
 def assert_constant(*args):
-    for x in args:
-        assert not isinstance(x, Distribution), "variable must be a constant"
+    if len(args) == 1:
+        assert is_constant(*args), "variable must be constant"
+    else:
+        assert all(is_constant(*args)), "variables must be constant"

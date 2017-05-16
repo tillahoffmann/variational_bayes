@@ -1,7 +1,8 @@
 import numpy as np
 import scipy.special
 
-from .util import Distribution, s, statistic, assert_constant, Likelihood
+from .distribution import Distribution, s, statistic, assert_constant
+from .likelihood import Likelihood
 
 
 class GammaLikelihood(Likelihood):
