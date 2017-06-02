@@ -9,3 +9,4 @@ from .mixture import *
 from .beta import *
 from .bernoulli import *
 from .dirichlet import *
+from .vector_autoregressive import *

@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.special
+from _util import pack_block_diag, unpack_block_diag
 
 
 def softmax(x):
