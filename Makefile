@@ -12,7 +12,7 @@ clean :
 	rm examples/*.html
 
 tests :
-	py.test -v --cov elboflow --cov-report html -rsx
+	py.test -v --cov variational_bayes --cov-report html -rsx
 
 data/sp100/yahoo: data/sp100/yahoo/sp100_symbols_2016-12-30.txt
 	scripts/download.py -o data/sp100/yahoo -l $(<:.txt=.log) -f $< yahoo 2007-01-01 2017-01-01
