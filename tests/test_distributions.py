@@ -194,4 +194,4 @@ def test_aggregate_natural_parameters(distribution, extra_dims):
 
 def test_likelihood(distribution):
     likelihood = distribution.likelihood(distribution, **distribution.parameters)
-    assert np.isfinite(likelihood)
+    assert isinstance(likelihood, vb.Likelihood)
