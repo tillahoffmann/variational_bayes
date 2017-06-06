@@ -17,13 +17,13 @@ def evaluate_natural_parameters(factor, likelihoods, exclude=None):
         parameter = likelihood.parameter_name(factor)
         if parameter:
             # Get the natural parameters
-            natural_parameters = likelihood.natural_parameters(
-                parameter, **likelihood.parameters
-            )
+            natural_parameters = likelihood.natural_parameters(parameter)
+            """
             # Check if the distribution was reshaped and apply the transforms if necessary
             if isinstance(likelihood.parameters[parameter], ReshapedDistribution):
                 natural_parameters = {key: np.reshape(value, (-1, *getattr(factor, key).shape))
                                       for key, value in natural_parameters.items()}
+            """
             args.append(natural_parameters)
     return args
 
@@ -63,7 +63,7 @@ class Model:
         priors = {k: [] for k in factors.values()}
 
         for likelihood in self._likelihoods:
-            x = likelihood.parameters['x']
+            x = likelihood.x
             if isinstance(x, Distribution):
                 priors[x].append(likelihood)
 
@@ -155,8 +155,7 @@ class Model:
     @property
     def joint(self):
         """float : expected joint distribution"""
-        return np.sum([np.sum(likelihood.evaluate(**likelihood.parameters))
-                       for likelihood in self._likelihoods])
+        return np.sum([np.sum(likelihood.evaluate()) for likelihood in self._likelihoods])
 
     @property
     def entropies(self):
