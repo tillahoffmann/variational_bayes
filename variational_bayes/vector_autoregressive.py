@@ -1,7 +1,7 @@
 import numpy as np
 
 from .distributions import Distribution, assert_constant, s, statistic
-from .util import pack_block_diag, unpack_block_diag
+from .util import pack_block_diag, unpack_block_diag, diag
 
 
 def shift(x, p):
@@ -165,7 +165,7 @@ class VectorAutoregressiveHelper:
         self.num_steps, self.num_nodes = self.x.shape
         # Check the coefficients
         self.coefficients = coefficients
-        num_nodes, a = s(coefficients, 1)
+        num_nodes, a = s(coefficients, 1).shape
         assert num_nodes == self.num_nodes, "number of nodes does not match"
         self.order = (a - 1) // num_nodes
         # Evaluate the features, flatten along the last dimension to get shape (t, n * p)
@@ -207,8 +207,8 @@ def simulate_series(bias, ar_coefficients, noise_precision, num_steps, x=None):
 
 class VectorAutoregressiveBiasDistribution(Distribution):
     def __init__(self, coefficients):
-        super(VectorAutoregressiveBiasDistribution, self).__init__()
         self._coefficients = coefficients
+        super(VectorAutoregressiveBiasDistribution, self).__init__()
 
     @statistic
     def mean(self):
@@ -218,11 +218,14 @@ class VectorAutoregressiveBiasDistribution(Distribution):
     def var(self):
         return unpack_bias_var(self._coefficients.cov)
 
+    def assert_valid_parameters(self):
+        assert self._coefficients is not None
+
 
 class VectorAutoregressiveAdjacencyDistribution(Distribution):
     def __init__(self, coefficients):
+        self._coefficients = coefficients
         super(VectorAutoregressiveAdjacencyDistribution, self).__init__()
-        self._coefficients
 
     @statistic
     def mean(self):
@@ -231,3 +234,10 @@ class VectorAutoregressiveAdjacencyDistribution(Distribution):
     @statistic
     def cov(self):
         return unpack_adjacency_var(self._coefficients.cov)
+
+    @statistic
+    def var(self):
+        return diag(self.cov)
+
+    def assert_valid_parameters(self):
+        assert self._coefficients is not None
