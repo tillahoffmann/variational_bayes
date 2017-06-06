@@ -2,8 +2,9 @@ import operator
 import numpy as np
 from scipy.special import multigammaln
 
-from .util import Distribution, statistic, s, assert_constant, Likelihood
-from ..util import multidigamma, diag
+from .distribution import Distribution, s, statistic, assert_constant
+from .likelihood import Likelihood
+from ..util import multidigamma, diag, is_positive_definite
 
 
 class WishartLikelihood(Likelihood):
@@ -89,4 +90,4 @@ class WishartDistribution(Distribution):
         np.testing.utils.assert_array_compare(operator.__le__, self._scale.shape[-1], self._shape,
                                               "shape must not be smaller than the dimensionality "
                                               "of the matrix")
-        # TODO: assert positive-definite scale
+        assert is_positive_definite(self._scale), "scale must be positive definite"

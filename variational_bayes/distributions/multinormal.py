@@ -1,7 +1,8 @@
 import numpy as np
 
-from .util import Distribution, statistic, s, Likelihood
-from ..util import diag
+from .distribution import Distribution, s, statistic
+from .likelihood import Likelihood
+from ..util import diag, is_positive_definite
 
 
 class MultiNormalLikelihood(Likelihood):
@@ -89,4 +90,4 @@ class MultiNormalDistribution(Distribution):
         assert self._precision.shape[-1] == self._precision.shape[-2], "last two dimensions of the " \
             "precision must be equal"
         assert np.all(np.isfinite(self._mean)), "mean must be finite"
-        # TODO: assert positive definite precision
+        assert is_positive_definite(self._precision), "precision must be positive definite"

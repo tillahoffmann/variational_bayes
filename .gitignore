@@ -93,3 +93,9 @@ ENV/
 playground/
 .vscode/
 examples/*.html
+data/sp100/**/*.csv
+data/sp100/**/*.log
+
+# Cython
+variational_bayes/*.c
+variational_bayes/*.html

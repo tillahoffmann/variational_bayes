@@ -4,6 +4,36 @@ from ..util import *
 from ..distributions import Distribution, ReshapedDistribution
 
 
+def evaluate_natural_parameters(factor, likelihoods, exclude=None):
+    """
+    Obtain the natural parameters for a given factor.
+    """
+    # Iterate over all likelihoods
+    args = []
+    for likelihood in likelihoods:
+        if exclude and likelihood in exclude:
+            continue
+        # Check if this factor is part of the likelihood
+        parameter = likelihood.parameter_name(factor)
+        if parameter:
+            # Get the natural parameters
+            natural_parameters = likelihood.natural_parameters(
+                parameter, **likelihood.parameters
+            )
+            # Check if the distribution was reshaped and apply the transforms if necessary
+            if isinstance(likelihood.parameters[parameter], ReshapedDistribution):
+                natural_parameters = {key: np.reshape(value, (-1, *getattr(factor, key).shape))
+                                      for key, value in natural_parameters.items()}
+            args.append(natural_parameters)
+    return args
+
+
+def aggregate_natural_parameters(factor, likelihoods, exclude=None):
+    return factor.aggregate_natural_parameters(
+        evaluate_natural_parameters(factor, likelihoods, exclude)
+    )
+
+
 class ConvergencePredicate:
     """
     Returns `True` if the provided sequence of ELBOs does not increase by more than `threshold`
@@ -103,29 +133,12 @@ class Model:
         """
         if isinstance(factor, str):
             factor = self._factors[factor]
-        # Iterate over all likelihoods
-        args = []
-        for likelihood in self._likelihoods:
-            if exclude and likelihood in exclude:
-                continue
-            # Check if this factor is part of the likelihood
-            parameter = likelihood.parameter_name(factor)
-            if parameter:
-                # Get the natural parameters
-                natural_parameters = likelihood.natural_parameters(
-                    parameter, **likelihood.parameters
-                )
-                # Check if the distribution was reshaped and apply the transforms if necessary
-                if isinstance(likelihood.parameters[parameter], ReshapedDistribution):
-                    natural_parameters = {key: np.reshape(value, (-1, *getattr(factor, key).shape))
-                                          for key, value in natural_parameters.items()}
-                args.append(natural_parameters)
-        return args
+        return evaluate_natural_parameters(factor, self._likelihoods, exclude)
 
     def aggregate_natural_parameters(self, factor, exclude=None):
         if isinstance(factor, str):
             factor = self._factors[factor]
-        return factor.aggregate_natural_parameters(self.natural_parameters(factor, exclude))
+        return aggregate_natural_parameters(factor, self._likelihoods, exclude)
 
     def update_factor(self, factor):
         """

@@ -177,7 +177,7 @@ def test_natural_parameters(distribution):
 
 
 @pytest.mark.parametrize('extra_dims', [0, 1, 2])
-def test_aggregate_natural_paramters(distribution, extra_dims):
+def test_aggregate_natural_parameters(distribution, extra_dims):
     # Get the natural parameters
     natural_parameters = distribution.likelihood.natural_parameters(
         'x', distribution, **distribution.parameters
@@ -194,3 +194,4 @@ def test_aggregate_natural_paramters(distribution, extra_dims):
 
 def test_likelihood(distribution):
     likelihood = distribution.likelihood(distribution, **distribution.parameters)
+    assert isinstance(likelihood, vb.Likelihood)

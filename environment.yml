@@ -11,5 +11,7 @@ dependencies:
   - pandas
   - jupyter
   - pylint
+  - requests
   - pip:
     - tqdm
+    - mechanicalsoup
