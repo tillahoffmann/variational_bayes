@@ -36,7 +36,8 @@ class Distribution:
     def __init__(self, **parameters):
         # Define a cache for statistics
         self._statistics = {}
-        self.parameters = {key: np.asarray(value) for key, value in parameters.items()}
+        self.parameters = {key: value if isinstance(value, Distribution) else np.asarray(value)
+                           for key, value in parameters.items()}
         self.assert_valid_parameters()
 
     def update(self, canonical_parameters):

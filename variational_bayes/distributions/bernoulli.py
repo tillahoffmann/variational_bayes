@@ -25,9 +25,10 @@ class BernoulliDistribution(Distribution):
         return - self._proba * safe_log(self._proba) - (1 - self._proba) * safe_log(1 - self._proba)
 
     def assert_valid_parameters(self):
-        np.testing.utils.assert_array_compare(operator.__le__, 0, self._proba,
+        proba = s(self._proba, 1)
+        np.testing.utils.assert_array_compare(operator.__le__, 0, proba,
                                               "probability must be non-negative")
-        np.testing.utils.assert_array_compare(operator.__le__, self._proba, 1,
+        np.testing.utils.assert_array_compare(operator.__le__, proba, 1,
                                               "probability must be <= 1")
 
     @staticmethod

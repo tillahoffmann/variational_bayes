@@ -50,9 +50,10 @@ class CategoricalDistribution(Distribution):
         }
 
     def assert_valid_parameters(self):
-        np.testing.utils.assert_array_compare(operator.__le__, 0, self._proba,
+        proba = s(self._proba, 1)
+        np.testing.utils.assert_array_compare(operator.__le__, 0, proba,
                                               "proba must be non-negative")
-        np.testing.assert_allclose(np.sum(self._proba, axis=-1), 1, err_msg='proba must sum to one')
+        np.testing.assert_allclose(np.sum(proba, axis=-1), 1, err_msg='proba must sum to one')
 
     def log_proba(self, x):
         return np.einsum('...i,...i', s(x, 1), s(self._proba, 'log'))

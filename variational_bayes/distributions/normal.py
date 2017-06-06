@@ -47,11 +47,13 @@ class NormalDistribution(Distribution):
         }
 
     def assert_valid_parameters(self):
-        assert np.all(np.isfinite(self._mean)), "mean must be finite"
-        np.testing.utils.assert_array_compare(operator.__le__, 0, self._precision,
+        # Check the expected values as a sanity check
+        mean = s(self._mean, 1)
+        precision = s(self._precision, 1)
+        assert np.all(np.isfinite(mean)), "mean must be finite"
+        np.testing.utils.assert_array_compare(operator.__le__, 0, precision,
                                               "precision must be non-negative")
-        assert np.shape(self._mean) == np.shape(self._precision), "shape of mean and precision " \
-            "must match"
+        assert np.shape(mean) == np.shape(precision), "shape of mean and precision must match"
 
     def log_proba(self, x):
         return 0.5 * (s(self._precision, 'log') - np.log(2 * np.pi) - s(self._precision, 1) * (

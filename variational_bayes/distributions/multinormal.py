@@ -45,13 +45,15 @@ class MultiNormalDistribution(Distribution):
         }
 
     def assert_valid_parameters(self):
-        assert self._mean.ndim > 0, "the mean must be at least one-dimensional"
-        assert self._precision.ndim == self._mean.ndim + 1, "dimensionality of the precision must " \
-            "be one larger than the dimensionality of the mean"
-        assert self._precision.shape[-1] == self._precision.shape[-2], "last two dimensions of the " \
-            "precision must be equal"
-        assert np.all(np.isfinite(self._mean)), "mean must be finite"
-        assert is_positive_definite(self._precision), "precision must be positive definite"
+        mean = s(self._mean, 1)
+        precision = s(self._precision, 1)
+        assert mean.ndim > 0, "the mean must be at least one-dimensional"
+        assert precision.ndim == mean.ndim + 1, "dimensionality of the precision must be one " \
+            "larger than the dimensionality of the mean"
+        assert precision.shape[-1] == precision.shape[-2], "last two dimensions of the precision " \
+            "must be equal"
+        assert np.all(np.isfinite(mean)), "mean must be finite"
+        assert is_positive_definite(precision), "precision must be positive definite"
 
     def log_proba(self, x):
         _outer = s(self._mean, 1)[..., None, :] * s(x, 1)[..., :, None]
