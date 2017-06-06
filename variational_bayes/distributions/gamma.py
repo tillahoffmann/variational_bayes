@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.special
 
-from .distribution import Distribution, statistic
+from .distribution import Distribution, statistic, s, assert_constant
 
 
 class GammaDistribution(Distribution):
@@ -18,6 +18,7 @@ class GammaDistribution(Distribution):
     sample_ndim = 0
 
     def __init__(self, shape, scale):
+        assert_constant(shape, scale)
         super(GammaDistribution, self).__init__(shape=shape, scale=scale)
 
     @statistic
@@ -48,3 +49,18 @@ class GammaDistribution(Distribution):
         assert self._shape.shape == self._scale.shape, "shape of shape and scale must match"
         np.testing.assert_array_less(0, self._shape, "shape must be positive")
         np.testing.assert_array_less(0, self._scale, "scale must be positive")
+
+    def log_proba(self, x):
+        return self._shape * np.log(self._scale) + (self._shape - 1.0) * s(x, 'log') - \
+            self._scale * s(x, 1) - scipy.special.gammaln(self._shape)
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            return {
+                'log': self._shape - 1.0,
+                'mean': - self._scale
+            }
+        elif variable in ('shape', 'scale'):
+            raise NotImplementedError(variable)
+        else:
+            raise KeyError(variable)

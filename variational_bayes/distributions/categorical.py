@@ -1,7 +1,7 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, statistic
+from .distribution import Distribution, statistic, s
 from ..util import softmax
 
 
@@ -53,3 +53,18 @@ class CategoricalDistribution(Distribution):
         np.testing.utils.assert_array_compare(operator.__le__, 0, self._proba,
                                               "proba must be non-negative")
         np.testing.assert_allclose(np.sum(self._proba, axis=-1), 1, err_msg='proba must sum to one')
+
+    def log_proba(self, x):
+        return np.einsum('...i,...i', s(x, 1), s(self._proba, 'log'))
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            return {
+                'mean': s(self._proba, 'log')
+            }
+        elif variable == 'proba':
+            return {
+                'log': s(x, 1)
+            }
+        else:
+            raise KeyError(variable)

@@ -2,7 +2,7 @@ import operator
 import numpy as np
 from scipy.special import multigammaln
 
-from .distribution import Distribution, statistic
+from .distribution import Distribution, statistic, s, assert_constant
 from ..util import multidigamma, diag, is_positive_definite
 
 
@@ -13,6 +13,7 @@ class WishartDistribution(Distribution):
     sample_ndim = 1
 
     def __init__(self, shape, scale):
+        assert_constant(shape, scale)
         super(WishartDistribution, self).__init__(shape=shape, scale=scale)
 
     @statistic
@@ -62,3 +63,21 @@ class WishartDistribution(Distribution):
                                               "shape must not be smaller than the dimensionality "
                                               "of the matrix")
         assert is_positive_definite(self._scale), "scale must be positive definite"
+
+    def log_proba(self, x):
+        p = self._scale.shape[-1]
+        return 0.5 * s(x, 'logdet') * (self._shape - p - 1.0) - 0.5 * \
+            np.sum(self._scale * s(x, 1), axis=(-1, -2)) - 0.5 * self._shape * p * np.log(2) - \
+            multigammaln(0.5 * self._shape, p) + 0.5 * self._shape * s(self._scale, 'logdet')
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            p = self._scale.shape[-1]
+            return {
+                'logdet': 0.5 * (self._shape - p - 1),
+                'mean': - 0.5 * self._scale,
+            }
+        elif variable in ('shape', 'scale'):
+            raise NotImplementedError(variable)
+        else:
+            raise KeyError(variable)

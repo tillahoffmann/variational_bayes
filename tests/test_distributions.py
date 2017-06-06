@@ -70,12 +70,6 @@ def scipy_distribution(batch_shape, distribution):
         raise KeyError(distribution)
 
 
-@pytest.fixture
-def likelihood_callable(distribution):
-    name = "%sLikelihood" % distribution.__class__.__name__[:-len("Distribution")]
-    return ft.partial(getattr(vb, name), **distribution.parameters)
-
-
 def test_evaluate_statistics(distribution):
     """Test that all statistics are finite."""
     for statistic in distribution.statistics:
@@ -121,11 +115,11 @@ def test_compare_statistics(distribution, scipy_distribution):
                                          "%s" % (statistic, distribution, mean, std, actual))
 
 
-def test_log_proba(likelihood_callable, scipy_distribution):
+def test_log_proba(distribution, scipy_distribution):
     x = scipy_distribution.rvs()
-    likelihood = likelihood_callable(x)
+    likelihood = distribution.likelihood(x)
     # For some reason, scipy can't handle its own RVs as input
-    if isinstance(likelihood, vb.DirichletLikelihood):
+    if isinstance(distribution, vb.DirichletDistribution):
         x = x[0]
 
     actual = likelihood.evaluate()
@@ -145,9 +139,9 @@ def test_log_proba(likelihood_callable, scipy_distribution):
                                distribution)
 
 
-def test_natural_parameters_roundtrip(distribution, likelihood_callable):
+def test_natural_parameters_roundtrip(distribution):
     # Get the natural parameters
-    likelihood = likelihood_callable(distribution)
+    likelihood = distribution.likelihood(distribution)
     natural_parameters = likelihood.natural_parameters('x')
 
     # Check the exact shape
@@ -166,8 +160,8 @@ def test_natural_parameters_roundtrip(distribution, likelihood_callable):
                                    err_msg="failed to reconstruct %s of %s" % (key, distribution))
 
 
-def test_natural_parameters(distribution, likelihood_callable):
-    likelihood = likelihood_callable(distribution)
+def test_natural_parameters(distribution):
+    likelihood = distribution.likelihood(distribution)
     for variable in list(distribution.parameters):
         try:
             natural_parameters = likelihood.natural_parameters(variable)
@@ -185,8 +179,8 @@ def test_natural_parameters(distribution, likelihood_callable):
 
 
 @pytest.mark.parametrize('extra_dims', [0, 1, 2])
-def test_aggregate_natural_parameters(distribution, extra_dims, likelihood_callable):
-    likelihood = likelihood_callable(distribution)
+def test_aggregate_natural_parameters(distribution, extra_dims):
+    likelihood = distribution.likelihood(distribution)
     # Get the natural parameters
     natural_parameters = likelihood.natural_parameters('x')
     # Add extra dimensions to the natural parameters

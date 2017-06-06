@@ -1,13 +1,14 @@
 import numpy as np
 from scipy.special import digamma, gammaln
 
-from .distribution import Distribution, statistic
+from .distribution import Distribution, statistic, s, assert_constant
 
 
 class BetaDistribution(Distribution):
     sample_ndim = 0
 
     def __init__(self, a, b):
+        assert_constant(a, b)
         super(BetaDistribution, self).__init__(a=a, b=b)
 
     @statistic
@@ -46,3 +47,18 @@ class BetaDistribution(Distribution):
             'a': natural_parameters['log'] + 1,
             'b': natural_parameters['log1m'] + 1
         }
+
+    def log_proba(self, x):
+        return gammaln(self._a + self._b) - gammaln(self._a) - gammaln(self._b) + \
+            (self._a - 1) * s(x, 'log') + (self._b - 1) * s(x, 'log1m')
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            return {
+                'log': self._a - 1,
+                'log1m': self._b - 1,
+            }
+        elif variable in ('a', 'b'):
+            raise NotImplementedError(variable)
+        else:
+            raise KeyError(variable)

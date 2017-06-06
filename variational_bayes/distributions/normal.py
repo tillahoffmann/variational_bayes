@@ -1,12 +1,17 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, statistic
+from .distribution import Distribution, statistic, s
 
 
 class NormalDistribution(Distribution):
-    """
+    r"""
     Univariate normal distribution.
+
+    The univariate normal distribution with mean $\mu$ and precision $\tau$ has log-pdf
+    $$
+    \frac{1}{2}\left(\log\frac{\tau}{2\pi} - \tau(x - 2 \mu x + \mu^2)\right).
+    $$
 
     Parameters
     ----------
@@ -47,3 +52,31 @@ class NormalDistribution(Distribution):
                                               "precision must be non-negative")
         assert np.shape(self._mean) == np.shape(self._precision), "shape of mean and precision " \
             "must match"
+
+    def log_proba(self, x):
+        return 0.5 * (s(self._precision, 'log') - np.log(2 * np.pi) - s(self._precision, 1) * (
+            s(x, 2) - 2 * s(x, 1) * s(self._mean, 1) + s(self._mean, 2)
+        ))
+
+    def natural_parameters(self, x, variable):
+        ones = np.ones(np.broadcast(s(x, 1), s(self._mean, 1)).shape)
+
+        if variable == 'x':
+            return {
+                'mean': s(self._precision, 1) * s(self._mean, 1) * ones,
+                'square': - 0.5 * s(self._precision, 1) * ones
+            }
+        elif variable == 'mean':
+            return {
+                'mean': s(self._precision, 1) * s(x, 1) * ones,
+                'square': - 0.5 * s(self._precision, 1) * ones
+            }
+        elif variable == 'precision':
+            return {
+                'log': 0.5 * ones,
+                'mean': - 0.5 * (
+                    s(x, 2) - 2 * s(x, 1) * s(self._mean, 1) + s(self._mean, 2)
+                )
+            }
+        else:
+            raise KeyError(variable)

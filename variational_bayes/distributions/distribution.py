@@ -3,6 +3,7 @@ import numpy as np
 import scipy.special
 
 from ..util import sum_leading_dims
+from .likelihood import Likelihood
 
 
 class statistic:
@@ -155,6 +156,21 @@ class Distribution:
 
     def assert_valid_parameters(self):
         raise NotImplementedError
+
+    def natural_parameters(self, x, variable):
+        """
+        Evaluate the natural parameters associated with `variable` given observation `x`.
+        """
+        raise NotImplementedError
+
+    def log_proba(self, x):
+        """
+        Evaluate the expected log-probability given observation `x`.
+        """
+        raise NotImplementedError
+
+    def likelihood(self, x):
+        return Likelihood(self, x)
 
 
 class ReshapedDistribution(Distribution):

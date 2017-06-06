@@ -1,13 +1,14 @@
 import numpy as np
 from scipy.special import digamma, gammaln
 
-from .distribution import Distribution, statistic
+from .distribution import Distribution, statistic, s, assert_constant
 
 
 class DirichletDistribution(Distribution):
     sample_ndim = 1
 
     def __init__(self, alpha):
+        assert_constant(alpha)
         super(DirichletDistribution, self).__init__(alpha=alpha)
 
     @statistic
@@ -42,3 +43,17 @@ class DirichletDistribution(Distribution):
         return {
             'alpha': natural_parameters['log'] + 1
         }
+
+    def log_proba(self, x):
+        return gammaln(np.sum(self._alpha, axis=-1)) - np.sum(gammaln(self._alpha), axis=-1) + \
+            np.sum((self._alpha - 1) * s(x, 'log'), axis=-1)
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            return {
+                'log': self._alpha - 1
+            }
+        elif variable == 'alpha':
+            raise NotImplementedError(variable)
+        else:
+            raise KeyError(variable)
