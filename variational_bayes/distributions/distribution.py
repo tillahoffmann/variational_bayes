@@ -1,5 +1,4 @@
 import numbers
-import collections
 import numpy as np
 import scipy.special
 
@@ -32,7 +31,6 @@ class Distribution:
     Base class for distributions that act as factors in the approximate posterior.
     """
     sample_ndim = None
-    likelihood = None
 
     def __init__(self, **parameters):
         # Define a cache for statistics
@@ -157,10 +155,6 @@ class Distribution:
 
     def assert_valid_parameters(self):
         raise NotImplementedError
-
-    def log_proba(self, x):
-        assert self.likelihood is not None, "likelihood is not defined for %s" % self
-        return self.likelihood.evaluate(x, **self.parameters)
 
 
 class ReshapedDistribution(Distribution):

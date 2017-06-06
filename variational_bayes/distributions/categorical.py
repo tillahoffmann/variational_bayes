@@ -1,31 +1,8 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, s, statistic
-from .likelihood import Likelihood
+from .distribution import Distribution, statistic
 from ..util import softmax
-
-
-class CategoricalLikelihood(Likelihood):
-    def __init__(self, x, proba):
-        super(CategoricalLikelihood, self).__init__(x=x, proba=proba)
-
-    @staticmethod
-    def evaluate(x, proba):  # pylint: disable=W0221
-        return np.einsum('...i,...i', s(x, 1), s(proba, 'log'))
-
-    @staticmethod
-    def natural_parameters(variable, x, proba):  # pylint: disable=W0221
-        if variable == 'x':
-            return {
-                'mean': s(proba, 'log')
-            }
-        elif variable == 'proba':
-            return {
-                'log': s(x, 1)
-            }
-        else:
-            raise KeyError(variable)
 
 
 class CategoricalDistribution(Distribution):
@@ -38,7 +15,6 @@ class CategoricalDistribution(Distribution):
         vector of probabilities
     """
     sample_ndim = 1
-    likelihood = CategoricalLikelihood
 
     def __init__(self, proba):
         super(CategoricalDistribution, self).__init__(proba=proba)

@@ -1,42 +1,7 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, s, statistic
-from .likelihood import Likelihood
-
-
-class NormalLikelihood(Likelihood):
-    def __init__(self, x, mean, precision):
-        super(NormalLikelihood, self).__init__(x=x, mean=mean, precision=precision)
-
-    @staticmethod
-    def evaluate(x, mean, precision):  # pylint: disable=W0221
-        return 0.5 * (s(precision, 'log') - np.log(2 * np.pi) - s(precision, 1) * (
-            s(x, 2) - 2 * s(x, 1) * s(mean, 1) + s(mean, 2)
-        ))
-
-    @staticmethod
-    def natural_parameters(variable, x, mean, precision):  # pylint: disable=W0221
-        # Get an object of ones with the correct broadcasted shape
-        ones = np.ones(np.broadcast(s(x, 1), s(mean, 1)).shape)
-
-        if variable == 'x':
-            return {
-                'mean': s(precision, 1) * s(mean, 1) * ones,
-                'square': - 0.5 * s(precision, 1) * ones
-            }
-        elif variable == 'mean':
-            return {
-                'mean': s(precision, 1) * s(x, 1) * ones,
-                'square': - 0.5 * s(precision, 1) * ones
-            }
-        elif variable == 'precision':
-            return {
-                'log': 0.5 * ones,
-                'mean': - 0.5 * (s(x, 2) - 2 * s(x, 1) * s(mean, 1) + s(mean, 2))
-            }
-        else:
-            raise KeyError(variable)
+from .distribution import Distribution, statistic
 
 
 class NormalDistribution(Distribution):
@@ -51,7 +16,6 @@ class NormalDistribution(Distribution):
         precision or inverse variance of the distribution
     """
     sample_ndim = 0
-    likelihood = NormalLikelihood
 
     def __init__(self, mean, precision):
         super(NormalDistribution, self).__init__(mean=mean, precision=precision)

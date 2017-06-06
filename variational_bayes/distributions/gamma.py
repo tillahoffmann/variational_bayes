@@ -1,32 +1,7 @@
 import numpy as np
 import scipy.special
 
-from .distribution import Distribution, s, statistic, assert_constant
-from .likelihood import Likelihood
-
-
-class GammaLikelihood(Likelihood):
-    def __init__(self, x, shape, scale):
-        super(GammaLikelihood, self).__init__(x=x, shape=shape, scale=scale)
-
-    @staticmethod
-    def evaluate(x, shape, scale):  # pylint: disable=W0221
-        assert_constant(shape)
-        assert_constant(scale)
-        return shape * np.log(scale) + (shape - 1.0) * s(x, 'log') - scale * s(x, 1) - \
-            scipy.special.gammaln(shape)
-
-    @staticmethod
-    def natural_parameters(variable, x, shape, scale):  # pylint: disable=W0221
-        if variable == 'x':
-            return {
-                'log': shape - 1.0,
-                'mean': - scale
-            }
-        elif variable in ('shape', 'scale'):
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
+from .distribution import Distribution, statistic
 
 
 class GammaDistribution(Distribution):
@@ -41,7 +16,6 @@ class GammaDistribution(Distribution):
         scale parameter
     """
     sample_ndim = 0
-    likelihood = GammaLikelihood
 
     def __init__(self, shape, scale):
         super(GammaDistribution, self).__init__(shape=shape, scale=scale)

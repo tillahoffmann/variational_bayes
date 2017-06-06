@@ -2,37 +2,11 @@ import operator
 import numpy as np
 from scipy.special import expit
 
-from .distribution import Distribution, s, statistic, assert_constant
-from .likelihood import Likelihood
-from ..util import softmax, safe_log
-
-
-class BernoulliLikelihood(Likelihood):
-    def __init__(self, x, proba):
-        super(BernoulliLikelihood, self).__init__(x=x, proba=proba)
-
-    @staticmethod
-    def evaluate(x, proba):   # pylint: disable=W0221
-        return s(x, 1) * s(proba, 'log') + (1 - s(x, 1)) * s(proba, 'log1m')
-
-    @staticmethod
-    def natural_parameters(variable, x, proba):   # pylint: disable=W0221
-        if variable == 'x':
-            return {
-                'mean': s(proba, 'log') - s(proba, 'log1m')
-            }
-        elif variable == 'proba':
-            ones = np.ones(np.broadcast(s(x, 1), s(proba, 1)).shape)
-            return {
-                'log': s(x, 1) * ones,
-                'log1m': 1 - s(x, 1) * ones
-            }
-        else:
-            raise KeyError(variable)
+from .distribution import Distribution, statistic
+from ..util import safe_log
 
 
 class BernoulliDistribution(Distribution):
-    likelihood = BernoulliLikelihood
     sample_ndim = 0
 
     def __init__(self, proba):

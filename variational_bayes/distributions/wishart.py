@@ -2,36 +2,8 @@ import operator
 import numpy as np
 from scipy.special import multigammaln
 
-from .distribution import Distribution, s, statistic, assert_constant
-from .likelihood import Likelihood
+from .distribution import Distribution, statistic
 from ..util import multidigamma, diag, is_positive_definite
-
-
-class WishartLikelihood(Likelihood):
-    def __init__(self, x, shape, scale):
-        super(WishartLikelihood, self).__init__(x=x, shape=shape, scale=scale)
-
-    @staticmethod
-    def evaluate(x, shape, scale):   # pylint: disable=W0221
-        assert_constant(shape)
-        assert_constant(scale)
-        p = scale.shape[-1]
-        return 0.5 * s(x, 'logdet') * (shape - p - 1.0) - 0.5 * \
-            np.sum(scale * s(x, 1), axis=(-1, -2)) - 0.5 * shape * p * np.log(2) - \
-            multigammaln(0.5 * shape, p) + 0.5 * shape * s(scale, 'logdet')
-
-    @staticmethod
-    def natural_parameters(variable, x, shape, scale):  # pylint: disable=W0221
-        if variable == 'x':
-            assert_constant(scale)
-            return {
-                'logdet': 0.5 * (shape - scale.shape[-1] - 1),
-                'mean': - 0.5 * scale,
-            }
-        elif variable in ('shape', 'scale'):
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
 
 
 class WishartDistribution(Distribution):
@@ -39,7 +11,6 @@ class WishartDistribution(Distribution):
     Matrix Wishart distribution.
     """
     sample_ndim = 1
-    likelihood = WishartLikelihood
 
     def __init__(self, shape, scale):
         super(WishartDistribution, self).__init__(shape=shape, scale=scale)

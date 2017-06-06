@@ -14,7 +14,7 @@ class MixtureLikelihood(Likelihood):
         super(MixtureLikelihood, self).__init__(z=z, likelihood=likelihood, **kwargs)
 
     @staticmethod
-    def evaluate(z, likelihood, **kwargs):   # pylint: disable=W0221
+    def evaluate(z, likelihood, **kwargs):
         likelihood = likelihood.evaluate(**kwargs)
         z_1 = s(z, 1)
         assert z_1.ndim == 2, "indicator must be two-dimensional"

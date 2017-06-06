@@ -1,5 +1,4 @@
 from .model import *
-from ..distributions import InteractingMixtureLikelihood
 
 
 class InteractingMixtureModel(Model):
