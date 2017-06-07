@@ -185,3 +185,51 @@ def test_aggregate_natural_parameters(distribution, extra_dims):
 
     for key, value in natural_parameters.items():
         np.testing.assert_allclose(actual[key], value, err_msg='failed to aggregate %s' % key)
+
+
+def test_reshape():
+    # Generate data
+    x = np.random.normal(0, 1, (100, 5, 5))
+    # Define factors and likelihood (using reshape)
+    q = vb.NormalDistribution(np.random.normal(0, 1, 25), np.random.gamma(1, 1, 25))
+    newshape = (5, 5)
+    reshaped = vb.ReshapedDistribution(q, newshape)
+
+    # Check the statistics
+    for statistic in q.statistics:
+        actual = vb.s(reshaped, statistic)
+        desired = vb.s(q, statistic).reshape(newshape)
+        np.testing.assert_allclose(actual, desired)
+
+    # Check the natural parameters
+    likelihood = vb.NormalDistribution(reshaped, 1).likelihood(x)
+    natural_parameters = likelihood.natural_parameters(q)
+    natural_parameters = q.aggregate_natural_parameters([natural_parameters])
+    np.testing.assert_allclose(natural_parameters['mean'], np.sum(x, axis=0).ravel(),
+                               err_msg="'mean' natural parameter does not match")
+    np.testing.assert_allclose(natural_parameters['square'], - 0.5 * 100,
+                               err_msg="'square' natural parameter does not match")
+
+
+def test_index():
+    # Generate some data
+    z = np.random.randint(0, 5, 100)
+    onehot = vb.onehot(z, 5)
+
+    # Define the parent distribution
+    parent = vb.NormalDistribution(np.random.normal(0, 1, 5), np.random.gamma(1, 1, 5))
+    child = vb.IndexedDistribution(parent, onehot)
+
+    # Check the statistics
+    for statistic in parent.statistics:
+        actual = vb.s(child, statistic)
+        desired = vb.s(parent, statistic)[z]
+        np.testing.assert_allclose(actual, desired)
+
+    # Check the natural parameters
+    x = np.random.normal(0, 1, 100)
+    likelihood = vb.NormalDistribution(child, 1).likelihood(x)
+    natural_parameters = likelihood.natural_parameters(parent)
+    natural_parameters = parent.aggregate_natural_parameters([natural_parameters])
+    np.testing.assert_allclose(natural_parameters['mean'], [x[z==i].sum() for i in range(5)])
+    np.testing.assert_allclose(natural_parameters['square'], -0.5 * np.bincount(z, minlength=5))

@@ -242,6 +242,8 @@ class Likelihood:
         """
         Evaluate the natural parameters associated with `variable` given observation `x`.
         """
+        if not isinstance(variable, str):
+            variable = self.parameter_name(variable)
         # Get the original natural parameters
         natural_parameters = self.distribution.natural_parameters(self.x, variable)
         # Now, for each child distribution, we want to transform the natural parameters to match

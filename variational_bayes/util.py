@@ -90,3 +90,13 @@ def assert_broadcastable(*x):
 def array_repr(a):
     a = np.asarray(a)
     return "array(%s, %s)" % (a.shape, a.dtype)
+
+
+def onehot(z, minlength=None):
+    """
+    Encode indices as one-hot.
+    """
+    minlength = max(np.max(z), minlength or 0)
+    onehot = np.zeros((len(z), minlength))
+    onehot[np.arange(len(z)), z] = 1
+    return onehot
