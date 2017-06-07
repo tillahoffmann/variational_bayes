@@ -70,14 +70,6 @@ def scipy_distribution(batch_shape, distribution):
         raise KeyError(distribution)
 
 
-def test_evaluate_statistics(distribution):
-    """Test that all statistics are finite."""
-    for statistic in distribution.statistics:
-        value = getattr(distribution, statistic)
-        assert np.all(np.isfinite(value)), "statistic '%s' of %s is not finite" % \
-            (statistic, distribution)
-
-
 def _get_or_call(x):
     return x() if callable(x) else x
 
@@ -102,6 +94,8 @@ def _scipy_statistic(dist, statistic):
 def test_compare_statistics(distribution, scipy_distribution):
     """Test that all statistics match the scipy implementation."""
     for statistic in distribution.statistics:
+        if statistic == 'interaction' and distribution._proba.ndim != 2:
+            pytest.skip("interaction statistic only defined for 1D batch")
         actual = getattr(distribution, statistic)
         desired = _scipy_statistic(scipy_distribution, statistic)
         if not isinstance(desired, dict):
