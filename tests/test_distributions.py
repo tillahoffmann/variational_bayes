@@ -231,5 +231,5 @@ def test_index():
     likelihood = vb.NormalDistribution(child, 1).likelihood(x)
     natural_parameters = likelihood.natural_parameters(parent)
     natural_parameters = parent.aggregate_natural_parameters([natural_parameters])
-    np.testing.assert_allclose(natural_parameters['mean'], [x[z==i].sum() for i in range(5)])
+    np.testing.assert_allclose(natural_parameters['mean'], [x[z == i].sum() for i in range(5)])
     np.testing.assert_allclose(natural_parameters['square'], -0.5 * np.bincount(z, minlength=5))

@@ -1,6 +1,6 @@
 import numpy as np
 
-from .distribution import ChildDistribution, statistic, s
+from .distribution import ChildDistribution, s
 from ..util import array_repr
 
 
@@ -19,27 +19,11 @@ class IndexedDistribution(ChildDistribution):
         self._z = z
         super(IndexedDistribution, self).__init__(parent)
 
-    def _indexed_statistic(self, statistic):
+    def _transformed_statistic(self, statistic):
         # Get the statistic
-        value = getattr(self._parent, statistic)
+        value = s(self._parent, statistic)
         # Compute the weighted mean
         return np.dot(s(self._z, 1), value)
-
-    @statistic
-    def mean(self):
-        return self._indexed_statistic('mean')
-
-    @statistic
-    def var(self):
-        return self._indexed_statistic('var')
-
-    @statistic
-    def entropy(self):
-        return self._indexed_statistic('entropy')
-
-    @statistic
-    def outer(self):
-        return self._indexed_statistic('outer')
 
     def assert_valid_parameters(self):
         super(IndexedDistribution, self).assert_valid_parameters()

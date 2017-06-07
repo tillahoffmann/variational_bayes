@@ -1,6 +1,6 @@
 import numpy as np
 
-from .distribution import ChildDistribution, statistic
+from .distribution import ChildDistribution, s
 
 
 class ReshapedDistribution(ChildDistribution):
@@ -18,9 +18,9 @@ class ReshapedDistribution(ChildDistribution):
         self._newshape = newshape
         super(ReshapedDistribution, self).__init__(parent)
 
-    def _reshaped_statistic(self, statistic):
+    def _transformed_statistic(self, statistic):
         # Get the statistic
-        value = getattr(self._parent, statistic)
+        value = s(self._parent, statistic)
         # Determine the new shape by popping leading dimensions until the size of popped dimensions
         # matches the desired size
         newsize = np.prod(self._newshape)
@@ -33,22 +33,6 @@ class ReshapedDistribution(ChildDistribution):
         assert size == newsize, "cannot reshape leading dimensions"
         newshape = self._newshape + tuple(shape)
         return np.reshape(value, newshape)
-
-    @statistic
-    def mean(self):
-        return self._reshaped_statistic('mean')
-
-    @statistic
-    def var(self):
-        return self._reshaped_statistic('var')
-
-    @statistic
-    def entropy(self):
-        return self._reshaped_statistic('entropy')
-
-    @statistic
-    def outer(self):
-        return self._reshaped_statistic('outer')
 
     def assert_valid_parameters(self):
         super(ReshapedDistribution, self).assert_valid_parameters()

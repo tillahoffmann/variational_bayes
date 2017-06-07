@@ -203,7 +203,7 @@ class Distribution:
         return "%s@0x%x(%s)" % (self.__class__.__name__, id(self), ", ".join(self._repr_parameters))
 
 
-class ChildDistribution(Distribution):  # pylint: disable=W0223
+class ChildDistribution(Distribution):
     def __init__(self, parent, **parameters):
         self._parent = parent
         super(ChildDistribution, self).__init__(**parameters)
@@ -231,6 +231,31 @@ class ChildDistribution(Distribution):  # pylint: disable=W0223
         of the parent distribution.
         """
         raise NotImplementedError
+
+    def _transformed_statistic(self, statistic):
+        raise NotImplementedError
+
+    @statistic
+    def mean(self):
+        return self._transformed_statistic('mean')
+
+    @statistic
+    def var(self):
+        return self._transformed_statistic('var')
+
+    @statistic
+    def entropy(self):
+        return self._transformed_statistic('entropy')
+
+    @statistic
+    def outer(self):
+        return self._transformed_statistic('outer')
+
+    def __getattr__(self, name):
+        try:
+            return super(ChildDistribution, self).__getattr__(name)
+        except AttributeError:
+            return self._transformed_statistic(name)
 
 
 class Likelihood:
