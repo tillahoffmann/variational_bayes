@@ -67,3 +67,26 @@ def is_positive_definite(x):
         return True
     except np.linalg.LinAlgError:
         return False
+
+
+def are_broadcastable(*x):
+    """
+    Check whether a sequence of arrays is broadcastable.
+    """
+    try:
+        np.broadcast(*x)
+        return True
+    except ValueError:
+        return False
+
+
+def assert_broadcastable(*x):
+    """
+    Assert that a sequence of arrays is broadcastable.
+    """
+    assert are_broadcastable(*x), "arrays must be broadcastable"
+
+
+def array_repr(a):
+    a = np.asarray(a)
+    return "array(%s, %s)" % (a.shape, a.dtype)
