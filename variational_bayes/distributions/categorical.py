@@ -39,6 +39,15 @@ class CategoricalDistribution(Distribution):
         return _cov
 
     @statistic
+    def interaction(self):
+        assert self.proba.ndim == 2, "interaction statistic is only defined for 2D probability matrix"
+        # Compute the outer product across both
+        zz = np.einsum('ik,jl->ijkl', self.mean, self.mean)
+        # Add the covariance to the diagonal terms
+        zz[np.diag_indices(self.proba.shape[0])] += self.cov
+        return zz
+
+    @statistic
     def entropy(self):
         summands = np.log(np.where(self._proba > 0, self._proba, 1.0))
         return - np.sum(self._proba * summands, axis=-1)

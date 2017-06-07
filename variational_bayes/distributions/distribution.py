@@ -41,6 +41,11 @@ class Distribution:
         self.assert_valid_parameters()
 
     def update(self, canonical_parameters):
+        """
+        Update the distribution with the given canonical paramters.
+
+        The statistics cache is automatically cleared.
+        """
         # Clear the statistics cache
         self._statistics.clear()
         # Update the canonical parameters
@@ -55,6 +60,11 @@ class Distribution:
         self.assert_valid_parameters()
 
     def update_from_natural_parameters(self, natural_parameters):
+        """
+        Update the distribution from the given natural parameters.
+
+        The statistics cache is automatically cleared.
+        """
         if not isinstance(natural_parameters, dict):
             natural_parameters = self.aggregate_natural_parameters(natural_parameters)
         self.update(self.canonical_parameters(natural_parameters))
@@ -105,6 +115,12 @@ class Distribution:
         return np.ndim(self.mean) - self.sample_ndim
 
     def statistic_ndim(self, statistic):
+        """
+        Get the number of dimensions of the given statistic.
+
+        For example, the dimensionality of the mean is equal to the dimensionality of the sample,
+        the dimensionality of the outer product is two (assuming that samples are vector-valued).
+        """
         if statistic in ('mean', 'square', 'log', 'log1m'):
             return self.sample_ndim
         elif statistic in ('outer', ):
@@ -156,6 +172,9 @@ class Distribution:
         return cls(**cls.canonical_parameters(natural_parameters))
 
     def assert_valid_parameters(self):
+        """
+        Validate that the parameters of the distribution are valid.
+        """
         raise NotImplementedError
 
     def natural_parameters(self, x, variable):
@@ -171,7 +190,20 @@ class Distribution:
         raise NotImplementedError
 
     def likelihood(self, x):
+        """
+        Obtain a likelihood for observation `x` under this distribution.
+        """
         return Likelihood(self, x)
+
+    def parameter_name(self, parameter):
+        """
+        Obtain the name of a parameter.
+        """
+        for key, value in self.parameters.items():
+            if value is parameter:
+                return key
+
+        return None
 
 
 class ReshapedDistribution(Distribution):
@@ -265,6 +297,16 @@ def evaluate_statistic(x, statistic):
         return np.log1p(-x)
     elif statistic == 'cov':
         return np.zeros(x.shape + (x.shape[-1], ))
+    elif statistic == 'interaction':
+        assert x.ndim == 2, "interaction statistic is only defined for matrices"
+        zz = np.einsum('ik,jl->ijkl', x, x)
+        # The self-interaction is trivial and does not have off-diagonal elements so we reconstruct
+        # it here
+        i = np.arange(x.shape[0])
+        k = np.arange(x.shape[1])
+        zz[i, i] = 0
+        zz[i, i, k, k] = x
+        return zz
     else:
         raise KeyError(statistic)
 
@@ -273,6 +315,9 @@ s = evaluate_statistic
 
 
 def is_constant(*args):
+    """
+    Determine whether the argument(s) are constant.
+    """
     constant = [not isinstance(x, Distribution) for x in args]
     if len(constant) == 1:
         return constant[0]
@@ -281,6 +326,9 @@ def is_constant(*args):
 
 
 def assert_constant(*args):
+    """
+    Assert that the argument(s) are constant.
+    """
     if len(args) == 1:
         assert is_constant(*args), "variable must be constant"
     else:
