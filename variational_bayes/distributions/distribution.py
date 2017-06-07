@@ -288,14 +288,6 @@ class ReshapedDistribution(ChildDistribution):
         log_proba = self._parent.log_proba(x)
         return np.reshape(log_proba, self._newshape)
 
-    def natural_parameters(self, x, variable):
-        # Get the natural parameters of the parent distribution
-        natural_parameters = self._parent.natural_parameters(x, variable)
-        # Reshape the natural parameters to match the shape of the original distribution
-        for key, value in natural_parameters.items():
-            natural_parameters[key] = np.reshape(value, (-1, ) + getattr(self._parent, key).shape)
-        return natural_parameters
-
     @property
     def _repr_parameters(self):
         return ["parent=%s" % self._parent, "newshape=%s" % [self._newshape]]
@@ -334,43 +326,11 @@ class Likelihood:
         """
         Get the name of the given parameter.
         """
-        """
-        keys = ['x']
-        current = self.distribution
-        while True:
-            keys.extend(current.parameters)
-            if isinstance(current, ChildDistribution):
-                current = current._parent
-            else:
-                break
-        # Check, for each parameter of the associated distribution and observations, whether the
-        # distribution parameter is equal to the parameter under consideration or whether the
-        # distribution parameter is a child of the parameter under consideration
-        for key in keys:
-            value = self[key]
-            if parameter is value or (isinstance(value, ChildDistribution)
-                                      and value.is_child(parameter)):
+        items = [('x', self.x)]
+        items.extend(self.distribution.parameters.items())
+        for key, value in items:
+            if value is parameter or (isinstance(value, ChildDistribution) and value.is_child(parameter)):
                 return key
-        """
-        # Check whether the current parameter is `x` or whether `x` is a child of the parameter
-        if self.x is parameter or (isinstance(self.x, ChildDistribution)
-                                   and self.x.is_child(parameter)):
-            return 'x'
-        # Otherwise, check whether the distribution or any of its parents are related to the parameter
-        queue = [self.distribution]
-        while queue:
-            current = queue.pop()
-            # Add the parent of the distribution if it is a child
-            if isinstance(current, ChildDistribution):
-                queue.append(current._parent)
-
-            for key, value in current.parameters.items():
-                # Return the key if we have found the parameter
-                if value is parameter:
-                    return key
-                # Add the value to the queue if it is a distribution
-                if isinstance(value, Distribution):
-                    queue.append(value)
 
     def __getitem__(self, key):
         if key == 'x':
@@ -415,8 +375,8 @@ def evaluate_statistic(x, statistic):
         return x * x
     elif statistic == 'log':
         return np.log(x)
-    elif statistic == 'gammaln':
-        return scipy.special.gammaln(x)
+    # elif statistic == 'gammaln':
+    #     return scipy.special.gammaln(x)
     elif statistic == 'outer':
         return x[..., :, None] * x[..., None, :]
     elif statistic == 'logdet':

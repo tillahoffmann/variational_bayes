@@ -1,9 +1,9 @@
 import numpy as np
-from .distribution import ChildDistribution, s, statistic
+from .distribution import Distribution, ChildDistribution, s, statistic
 from ..util import pad_dims, sum_trailing_dims, softmax
 
 
-class MixtureDistribution(ChildDistribution):  # pylint: disable=W0223
+class MixtureDistribution(Distribution):  # pylint: disable=W0223
     """
     A mixture distribution.
 
@@ -11,11 +11,13 @@ class MixtureDistribution(ChildDistribution):  # pylint: disable=W0223
     ----------
     z : np.ndarray | Distribution
         mixture indicators
-    parent : Distribution
+    parent : type
         parent distribution of the mixture
     """
     def __init__(self, z, parent):
-        super(MixtureDistribution, self).__init__(parent, z=z)
+        self._parent = parent
+        # We add the parameters of the parent to this distribution (which is a hack cf. #7)
+        super(MixtureDistribution, self).__init__(z=z, **self._parent.parameters)
 
     def log_proba(self, x):
         # Evaluate the log probability of the observations under the individual distributions with
@@ -32,8 +34,6 @@ class MixtureDistribution(ChildDistribution):  # pylint: disable=W0223
                 'mean': self._parent.log_proba(x)
             }
         else:
-            return self._parent.natural_parameters(x, variable)
-            """
             # Get the natural parameters of the parent distribution and compute the
             # indicator-weighted mean
             natural_parameters = self._parent.natural_parameters(x, variable)
@@ -45,30 +45,19 @@ class MixtureDistribution(ChildDistribution):  # pylint: disable=W0223
                 # Aggregate the parameters. The indicators need to be padded
                 natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
             return natural_parameters
-            """
-    def transform_natural_parameters(self, natural_parameters):
-        raise ValueError('foo')
-        z = s(self._z, 1)
-        # We sum over the leading dimensions of the indicator but the last (which corresponds to
-        # different components of the mixture)
-        axis = tuple(range(z.ndim - 1))
-        for key, value in natural_parameters.items():
-            # Aggregate the parameters. The indicators need to be padded
-            natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
-        return natural_parameters
 
     def assert_valid_parameters(self):
-        super(MixtureDistribution, self).assert_valid_parameters()
         z = s(self._z, 1)
         assert z.ndim > 0, "z must be at least one-dimensional"
 
 
-class InteractingMixtureDistribution(ChildDistribution):  # pylint: disable=W0223
+class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
     def __init__(self, z, parent):
-        super(InteractingMixtureDistribution, self).__init__(parent, z=z)
+        self._parent = parent
+        # We add the parameters of the parent to this distribution (which is a hack cf. #7)
+        super(InteractingMixtureDistribution, self).__init__(z=z, **self._parent.parameters)
 
     def assert_valid_parameters(self):
-        super(InteractingMixtureDistribution, self).assert_valid_parameters()
         z = s(self._z, 1)
         assert z.ndim == 2, "z must be two-dimensional"
 

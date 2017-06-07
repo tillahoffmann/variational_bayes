@@ -1,7 +1,7 @@
 import numbers
+import numpy as np
 
-from ..util import *
-from ..distributions import Distribution, ReshapedDistribution
+from ..distributions import Distribution, ChildDistribution
 
 
 def evaluate_natural_parameters(factor, likelihoods, exclude=None):
@@ -18,12 +18,6 @@ def evaluate_natural_parameters(factor, likelihoods, exclude=None):
         if parameter:
             # Get the natural parameters
             natural_parameters = likelihood.natural_parameters(parameter)
-            """
-            # Check if the distribution was reshaped and apply the transforms if necessary
-            if isinstance(likelihood.parameters[parameter], ReshapedDistribution):
-                natural_parameters = {key: np.reshape(value, (-1, *getattr(factor, key).shape))
-                                      for key, value in natural_parameters.items()}
-            """
             args.append(natural_parameters)
     return args
 
@@ -71,6 +65,10 @@ class Model:
         for factor, p in priors.items():
             assert p, "%s does not have a prior" % lookup[factor]
             assert len(p) < 2, "%s has more than one prior: %s" % (lookup[factor], p)
+
+        # Ensure only real distributions are added as factors and no child distributions
+        for key, value in self._factors.items():
+            assert not isinstance(value, ChildDistribution), "%s is a ChildDistribution" % key
 
     def __getitem__(self, name):
         return self._factors[name]
