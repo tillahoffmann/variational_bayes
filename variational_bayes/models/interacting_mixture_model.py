@@ -1,4 +1,5 @@
-from .model import *
+from .model import Model
+from ..distributions import InteractingMixtureDistribution
 
 
 class InteractingMixtureModel(Model):
@@ -8,11 +9,11 @@ class InteractingMixtureModel(Model):
         self._interacting_likelihood = None
         self._indicators = None
         for likelihood in self._likelihoods:
-            if isinstance(likelihood, InteractingMixtureLikelihood):
+            if isinstance(likelihood.distribution, InteractingMixtureDistribution):
                 assert self._interacting_likelihood is None, "there may only be one interacting " \
                     "mixture likelihood"
                 self._interacting_likelihood = likelihood
-                self._indicators = likelihood.parameters['z']
+                self._indicators = likelihood.distribution.z
                 assert self._indicators in self._factors.values(), "indicators are not part of model"
 
     def aggregate_natural_parameters(self, factor, exclude=None):
@@ -28,8 +29,8 @@ class InteractingMixtureModel(Model):
                 factor, [self._interacting_likelihood] + exclude
             )
             # Get the natural parameters after one sequence of interacting mixture model updates
-            return self._interacting_likelihood.indicator_natural_parameters(
-                natural_parameters, **self._interacting_likelihood.parameters
+            return self._interacting_likelihood.distribution.natural_parameters_z(
+                self._interacting_likelihood.x, natural_parameters
             )
         else:
             return super(InteractingMixtureModel, self).aggregate_natural_parameters(
