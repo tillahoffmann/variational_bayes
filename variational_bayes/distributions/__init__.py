@@ -4,7 +4,10 @@ from .categorical import *
 from .dirichlet import *
 from .distribution import *
 from .gamma import *
+from .indexed import *
 from .mixture import *
 from .multinormal import *
 from .normal import *
+from .reshaped import *
+from .var import *
 from .wishart import *

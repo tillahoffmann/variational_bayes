@@ -1,5 +1,5 @@
 import numpy as np
-from .distribution import Distribution, ChildDistribution, s, statistic
+from .distribution import Distribution, s
 from ..util import pad_dims, sum_trailing_dims, softmax
 
 
