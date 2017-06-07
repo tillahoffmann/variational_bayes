@@ -1,7 +1,7 @@
 import numbers
 
 from ..util import *
-from ..distributions import Distribution, ReshapedDistribution
+from ..distributions import Distribution, ReshapedDistribution, DeltaDistribution
 
 
 def evaluate_natural_parameters(factor, likelihoods, exclude=None):
@@ -69,7 +69,8 @@ class Model:
 
         # Run over the priors and ensure they all have exactly one prior
         for factor, p in priors.items():
-            assert p, "%s does not have a prior" % lookup[factor]
+            assert p or isinstance(factor, DeltaDistribution), \
+                "%s does not have a prior" % lookup[factor]
             assert len(p) < 2, "%s has more than one prior: %s" % (lookup[factor], p)
 
     def __getitem__(self, name):

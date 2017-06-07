@@ -6,7 +6,7 @@ NOTEBOOK_OUTPUTS = $(NOTEBOOKS:.ipynb=.html)
 examples : $(NOTEBOOK_OUTPUTS)
 
 $(NOTEBOOK_OUTPUTS) : %.html : %.ipynb
-	jupyter nbconvert --execute --ExecutePreprocessor.timeout=None --allow-errors $<
+	jupyter nbconvert --execute --ExecutePreprocessor.timeout=None $<
 
 clean :
 	rm examples/*.html
