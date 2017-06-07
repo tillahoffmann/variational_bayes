@@ -1,116 +1,118 @@
 import numpy as np
-
-from .likelihood import Likelihood
-from .distribution import s
-from .categorical import CategoricalDistribution
+from .distribution import Distribution, ChildDistribution, s, statistic
 from ..util import pad_dims, sum_trailing_dims, softmax
 
 
-class MixtureLikelihood(Likelihood):
+class MixtureDistribution(Distribution):  # pylint: disable=W0223
     """
-    Mixture likelihood.
+    A mixture distribution.
+
+    Parameters
+    ----------
+    z : np.ndarray | Distribution
+        mixture indicators
+    parent : type
+        parent distribution of the mixture
     """
-    def __init__(self, z, likelihood, **kwargs):
-        super(MixtureLikelihood, self).__init__(z=z, likelihood=likelihood, **kwargs)
+    def __init__(self, z, parent):
+        self._parent = parent
+        # We add the parameters of the parent to this distribution (which is a hack cf. #7)
+        super(MixtureDistribution, self).__init__(z=z, **self._parent.parameters)
 
-    @staticmethod
-    def evaluate(z, likelihood, **kwargs):   # pylint: disable=W0221
-        likelihood = likelihood.evaluate(**kwargs)
-        z_1 = s(z, 1)
-        assert z_1.ndim == 2, "indicator must be two-dimensional"
-        assert z_1.shape == likelihood.shape[:2], "leading dimensions of the likelihood %s and " \
-            "indicators %s must match" % (likelihood.shape, z_1.shape)
-        # Aggregate with respect to the indicator dimension
-        return np.sum(pad_dims(z_1, likelihood.ndim) * likelihood, axis=1)
+    def log_proba(self, x):
+        # Evaluate the log probability of the observations under the individual distributions with
+        # expected shape `(n, k)`, where `n` is the number of observations and `k` is the number
+        # of groups
+        log_proba = self._parent.log_proba(x)
+        # Contract with the expected indicators of shape `(n, k)`
+        return np.sum(s(self._z, 1) * log_proba, axis=-1)
 
-    @staticmethod
-    def natural_parameters(variable, z, likelihood, **kwargs):  # pylint: disable=W0221
+    def natural_parameters(self, x, variable):
         if variable == 'z':
-            # Just evaluate the responsibilities and aggregate any trailing dimensions
-            likelihood = likelihood.evaluate(**kwargs)
+            # Evaluate the log probability of the observations under the individual distributions
             return {
-                'mean': sum_trailing_dims(likelihood, 2),
+                'mean': self._parent.log_proba(x)
             }
         else:
-            z_1 = s(z, 1)
-            assert z_1.ndim == 2, "indicator must be two-dimensional"
-            # Iterate over the natural parameters of the likelihood
-            natural_parameters = {}
-            for key, value in likelihood.natural_parameters(variable, **kwargs).items():
-                # We assume that the natural parameters have shape `(n, k, ...)`, where `n` is the
-                # number of observations, `k` is the number of mixture components, and `...` is the
-                # shape associated with the natural parameter
-                assert z_1.shape == value.shape[:2], "leading dimensions %s of the natural " \
-                    "parameters %s of %s and the indicators %s must match" % \
-                    (value.shape, key, variable, z_1.shape)
-                # Sum over the dimension corresponding to samples
-                natural_parameters[key] = np.sum(pad_dims(z_1, value.ndim) * value, axis=0)
+            # Get the natural parameters of the parent distribution and compute the
+            # indicator-weighted mean
+            natural_parameters = self._parent.natural_parameters(x, variable)
+            z = s(self._z, 1)
+            # We sum over the leading dimensions of the indicator but the last (which corresponds to
+            # different components of the mixture)
+            axis = tuple(range(z.ndim - 1))
+            for key, value in natural_parameters.items():
+                # Aggregate the parameters. The indicators need to be padded
+                natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
             return natural_parameters
 
+    def assert_valid_parameters(self):
+        z = s(self._z, 1)
+        assert z.ndim > 0, "z must be at least one-dimensional"
 
-class InteractingMixtureLikelihood(Likelihood):
-    def __init__(self, z, likelihood, **kwargs):
-        super(InteractingMixtureLikelihood, self).__init__(z=z, likelihood=likelihood, **kwargs)
 
-    @staticmethod
-    def zz(z):
-        # Compute the expected outer product
-        z_1 = s(z, 1)
-        assert z_1.ndim == 2, "indicator must be two-dimensional"
-        n, _ = z_1.shape
-        zz = z_1[:, None, :, None] * z_1[None, :, None, :]
-        i = np.arange(n)
-        zz[i, i] += s(z, 'cov')
-        return zz
+class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
+    def __init__(self, z, parent):
+        self._parent = parent
+        # We add the parameters of the parent to this distribution (which is a hack cf. #7)
+        super(InteractingMixtureDistribution, self).__init__(z=z, **self._parent.parameters)
 
-    @staticmethod
-    def evaluate(z, likelihood, **kwargs):
-        likelihood = likelihood.evaluate(**kwargs)
-        zz = InteractingMixtureLikelihood.zz(z)
-        # Aggregate with respect to the indicator dimensions
-        return np.sum(pad_dims(zz, likelihood.ndim) * likelihood, axis=(2, 3))
+    def assert_valid_parameters(self):
+        z = s(self._z, 1)
+        assert z.ndim == 2, "z must be two-dimensional"
 
-    @staticmethod
-    def natural_parameters(variable, z, likelihood, **kwargs):
+    def log_proba(self, x):
+        # Evaluate the log-probability of the parent distribution with expected shape `(n, n, k, k)`,
+        # where `n` is the number of observations and `k` is the number of components
+        log_proba = self._parent.log_proba(x)
+        # Sum over the trailing dimensions weighted by the interaction
+        zz = s(self.z, 'interaction')
+        return np.sum(log_proba * pad_dims(zz, log_proba.ndim), axis=(0, 1))
+
+    def natural_parameters(self, x, variable):
         if variable == 'z':
-            raise NotImplementedError("Natural parameters for indicators cannot be obtained jointly")
+            raise NotImplementedError
         else:
-            zz = InteractingMixtureLikelihood.zz(z)
-            # Iterate over the natural parameters of the likelihood
-            natural_parameters = {}
-            for key, value in likelihood.natural_parameters(variable, **kwargs).items():
-                # We assume that the natural parameters have shape `(n, n, k, k, ...)` where `n` is
-                # the number of observations, `k` is the number of mixture components, and `...` is
-                # the shape associated with the natural parameter
-                assert zz.shape == value.shape[:4], "leading dimensions %s of the natural " \
-                    "parameters %s of %s and the indicators %s must match" % \
-                    (value.shape, key, variable, zz.shape)
-                # Sum over the dimensions corresponding to samples
-                natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, axis=(0, 1))
+            # Get the natural parameters from the parent distribution which should have shape
+            # `(n, n, k, k, ...)` where `...` denotes any sample dimensions
+            natural_parameters = self._parent.natural_parameters(x, variable)
+            zz = s(self.z, 'interaction')
+            # Aggregate over the two leading dimensions
+            for key, value in natural_parameters.items():
+                # Aggregate the parameters. The indicators need to be padded.
+                natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, (0, 1))
             return natural_parameters
 
-    @staticmethod
-    def indicator_natural_parameters(natural_parameters, z, likelihood, **kwargs):
-        """
-        Update the indicator variables for component membership.
+    def natural_parameters_z(self, x, natural_parameters):
+        r"""
+        Obtain the natural parameters for the component indicators.
 
-        The natural parameters of the indicators cannot be obtained jointly and we need to run an
-        iterative update scheme in which each indicator variable is updated in turn.
+        The log-likelihood for interacting mixtures takes the form
+        $$
+        \sum_{ijkl} z_{ik}z_{jl} \log P(x_{ij}|\theta_{kl}),
+        $$
+        where $x$ are observations, $z$ are component indicators, and $\theta$ are parameters. We
+        are interested in the optimal posterior factor of the indicator $z_{ik}$ and take the
+        expectation with respect to all other factors to find
+        \begin{align}
+        q_i &= \sum_{k} z_{ik} \E{\log P(x_{ii}|theta_{kk})} \\
+            &\quad + \sum_{j\neq i, k, l} z_{ik}\E{z_{jl}} \E{\log P(x_{ij}|theta_{kl})}
+        \end{align}
 
         Parameters
         ----------
-        z : np.ndarray or CategoricalDistribution
-            indicator variables for component membership
+        x : np.ndarray | Distribution
+            observations
         natural_parameters : dict
-            natural parameters or messages sent to the indicator variables from the rest of the
-            Bayesian network
-        likelihood : Likelihood
-            likelihood to evaluate the likelihood of `args`
-        args : list
-            parameters passed to the evaluation of `likelihood`
+            natural parameters due to the rest of the model
+
+        Returns
+        -------
+        natural_parameters : dict
+            natural parameters for the component indicators
         """
         # Start with the initial probabilities
-        proba = s(z, 1)
+        proba = s(self.z, 1)
         assert proba.ndim == 2, "indicator must be two-dimensional"
         n, k = proba.shape
 
@@ -118,13 +120,9 @@ class InteractingMixtureLikelihood(Likelihood):
         natural_parameters = natural_parameters['mean']
         # Ensure the shape is broadcast
         natural_parameters = np.ones(np.broadcast(natural_parameters, proba).shape) * natural_parameters
-        #ndim = np.ndim(natural_parameters)
-        #assert np.shape(natural_parameters) == np.shape(proba)[:-ndim], "trailing shape %s of the natural " \
-        #    "parameter associated with the mean must match the shape %s of the expected indicators" % \
-        #    (np.shape(natural_parameters), np.shape(proba))
 
         # Evaluate the likelihood
-        likelihood = likelihood.evaluate(**kwargs)
+        likelihood = self._parent.log_proba(x)
         assert likelihood.ndim >= 4, "evaluated likelihood must have at least four dimensions"
         assert likelihood.shape[:4] == (n, n, k, k), "evaluated likelihood must have leading shape " \
             "%s" % [(n, n, k, k)]
@@ -138,10 +136,10 @@ class InteractingMixtureLikelihood(Likelihood):
             # Add the diagonal term
             _np += np.diag(likelihood[i, i])
             # Add the interaction terms
-            _np += np.einsum('jb,jab', proba, likelihood[i])
-            # Subtract the self interaction (we shouldn't have added this term in the first place
-            # but the summation is easier this way)
-            _np -= np.sum(likelihood[i, i], axis=1)
+            _np += np.einsum('jl,jkl', proba, likelihood[i])
+            # Subtract the term that we have erroneously added above, i.e.
+            # \E{z_{il}} \E{\log P(x_{ii}|theta_{kl})}
+            _np -= np.einsum('l,kl', proba[i], likelihood[i, i])
             # Set the probability of the observations
             proba[i] = softmax(_np)
 

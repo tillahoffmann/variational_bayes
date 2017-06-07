@@ -1,38 +1,14 @@
 import numpy as np
 from scipy.special import digamma, gammaln
 
-from .distribution import Distribution, s, statistic, assert_constant
-from .likelihood import Likelihood
-
-
-class BetaLikelihood(Likelihood):
-    def __init__(self, x, a, b):
-        super(BetaLikelihood, self).__init__(x=x, a=a, b=b)
-
-    @staticmethod
-    def evaluate(x, a, b):   # pylint: disable=W0221
-        assert_constant(a, b)
-        return gammaln(a + b) - gammaln(a) - gammaln(b) + \
-            (a - 1) * s(x, 'log') + (b - 1) * s(x, 'log1m')
-
-    @staticmethod
-    def natural_parameters(variable, x, a, b):   # pylint: disable=W0221
-        if variable == 'x':
-            return {
-                'log': a - 1,
-                'log1m': b - 1,
-            }
-        elif variable in ('a', 'b'):
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
+from .distribution import Distribution, statistic, s, assert_constant
 
 
 class BetaDistribution(Distribution):
-    likelihood = BetaLikelihood
     sample_ndim = 0
 
     def __init__(self, a, b):
+        assert_constant(a, b)
         super(BetaDistribution, self).__init__(a=a, b=b)
 
     @statistic
@@ -71,3 +47,18 @@ class BetaDistribution(Distribution):
             'a': natural_parameters['log'] + 1,
             'b': natural_parameters['log1m'] + 1
         }
+
+    def log_proba(self, x):
+        return gammaln(self._a + self._b) - gammaln(self._a) - gammaln(self._b) + \
+            (self._a - 1) * s(x, 'log') + (self._b - 1) * s(x, 'log1m')
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            return {
+                'log': self._a - 1,
+                'log1m': self._b - 1,
+            }
+        elif variable in ('a', 'b'):
+            raise NotImplementedError(variable)
+        else:
+            raise KeyError(variable)

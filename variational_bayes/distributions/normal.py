@@ -1,47 +1,18 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, s, statistic
-from .likelihood import Likelihood
-
-
-class NormalLikelihood(Likelihood):
-    def __init__(self, x, mean, precision):
-        super(NormalLikelihood, self).__init__(x=x, mean=mean, precision=precision)
-
-    @staticmethod
-    def evaluate(x, mean, precision):  # pylint: disable=W0221
-        return 0.5 * (s(precision, 'log') - np.log(2 * np.pi) - s(precision, 1) * (
-            s(x, 2) - 2 * s(x, 1) * s(mean, 1) + s(mean, 2)
-        ))
-
-    @staticmethod
-    def natural_parameters(variable, x, mean, precision):  # pylint: disable=W0221
-        # Get an object of ones with the correct broadcasted shape
-        ones = np.ones(np.broadcast(s(x, 1), s(mean, 1)).shape)
-
-        if variable == 'x':
-            return {
-                'mean': s(precision, 1) * s(mean, 1) * ones,
-                'square': - 0.5 * s(precision, 1) * ones
-            }
-        elif variable == 'mean':
-            return {
-                'mean': s(precision, 1) * s(x, 1) * ones,
-                'square': - 0.5 * s(precision, 1) * ones
-            }
-        elif variable == 'precision':
-            return {
-                'log': 0.5 * ones,
-                'mean': - 0.5 * (s(x, 2) - 2 * s(x, 1) * s(mean, 1) + s(mean, 2))
-            }
-        else:
-            raise KeyError(variable)
+from .distribution import Distribution, statistic, s
+from ..util import assert_broadcastable
 
 
 class NormalDistribution(Distribution):
-    """
+    r"""
     Univariate normal distribution.
+
+    The univariate normal distribution with mean $\mu$ and precision $\tau$ has log-pdf
+    $$
+    \frac{1}{2}\left(\log\frac{\tau}{2\pi} - \tau(x - 2 \mu x + \mu^2)\right).
+    $$
 
     Parameters
     ----------
@@ -51,7 +22,6 @@ class NormalDistribution(Distribution):
         precision or inverse variance of the distribution
     """
     sample_ndim = 0
-    likelihood = NormalLikelihood
 
     def __init__(self, mean, precision):
         super(NormalDistribution, self).__init__(mean=mean, precision=precision)
@@ -78,8 +48,38 @@ class NormalDistribution(Distribution):
         }
 
     def assert_valid_parameters(self):
-        assert np.all(np.isfinite(self._mean)), "mean must be finite"
-        np.testing.utils.assert_array_compare(operator.__le__, 0, self._precision,
+        # Check the expected values as a sanity check
+        mean = s(self._mean, 1)
+        precision = s(self._precision, 1)
+        assert np.all(np.isfinite(mean)), "mean must be finite"
+        np.testing.utils.assert_array_compare(operator.__le__, 0, precision,
                                               "precision must be non-negative")
-        assert np.shape(self._mean) == np.shape(self._precision), "shape of mean and precision " \
-            "must match"
+        assert_broadcastable(mean, precision)
+
+    def log_proba(self, x):
+        return 0.5 * (s(self._precision, 'log') - np.log(2 * np.pi) - s(self._precision, 1) * (
+            s(x, 2) - 2 * s(x, 1) * s(self._mean, 1) + s(self._mean, 2)
+        ))
+
+    def natural_parameters(self, x, variable):
+        ones = np.ones(np.broadcast(s(x, 1), s(self._mean, 1)).shape)
+
+        if variable == 'x':
+            return {
+                'mean': s(self._precision, 1) * s(self._mean, 1) * ones,
+                'square': - 0.5 * s(self._precision, 1) * ones
+            }
+        elif variable == 'mean':
+            return {
+                'mean': s(self._precision, 1) * s(x, 1) * ones,
+                'square': - 0.5 * s(self._precision, 1) * ones
+            }
+        elif variable == 'precision':
+            return {
+                'log': 0.5 * ones,
+                'mean': - 0.5 * (
+                    s(x, 2) - 2 * s(x, 1) * s(self._mean, 1) + s(self._mean, 2)
+                )
+            }
+        else:
+            raise KeyError(variable)

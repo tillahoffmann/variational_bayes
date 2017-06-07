@@ -1,31 +1,8 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, s, statistic
-from .likelihood import Likelihood
+from .distribution import Distribution, statistic, s
 from ..util import softmax
-
-
-class CategoricalLikelihood(Likelihood):
-    def __init__(self, x, proba):
-        super(CategoricalLikelihood, self).__init__(x=x, proba=proba)
-
-    @staticmethod
-    def evaluate(x, proba):  # pylint: disable=W0221
-        return np.einsum('...i,...i', s(x, 1), s(proba, 'log'))
-
-    @staticmethod
-    def natural_parameters(variable, x, proba):  # pylint: disable=W0221
-        if variable == 'x':
-            return {
-                'mean': s(proba, 'log')
-            }
-        elif variable == 'proba':
-            return {
-                'log': s(x, 1)
-            }
-        else:
-            raise KeyError(variable)
 
 
 class CategoricalDistribution(Distribution):
@@ -38,7 +15,6 @@ class CategoricalDistribution(Distribution):
         vector of probabilities
     """
     sample_ndim = 1
-    likelihood = CategoricalLikelihood
 
     def __init__(self, proba):
         super(CategoricalDistribution, self).__init__(proba=proba)
@@ -63,6 +39,15 @@ class CategoricalDistribution(Distribution):
         return _cov
 
     @statistic
+    def interaction(self):
+        assert self.proba.ndim == 2, "interaction statistic is only defined for 2D probability matrix"
+        # Compute the outer product across both
+        zz = np.einsum('ik,jl->ijkl', self.mean, self.mean)
+        # Add the covariance to the diagonal terms
+        zz[np.diag_indices(self.proba.shape[0])] += self.cov
+        return zz
+
+    @statistic
     def entropy(self):
         summands = np.log(np.where(self._proba > 0, self._proba, 1.0))
         return - np.sum(self._proba * summands, axis=-1)
@@ -74,6 +59,22 @@ class CategoricalDistribution(Distribution):
         }
 
     def assert_valid_parameters(self):
-        np.testing.utils.assert_array_compare(operator.__le__, 0, self._proba,
+        proba = s(self._proba, 1)
+        np.testing.utils.assert_array_compare(operator.__le__, 0, proba,
                                               "proba must be non-negative")
-        np.testing.assert_allclose(np.sum(self._proba, axis=-1), 1, err_msg='proba must sum to one')
+        np.testing.assert_allclose(np.sum(proba, axis=-1), 1, err_msg='proba must sum to one')
+
+    def log_proba(self, x):
+        return np.einsum('...i,...i', s(x, 1), s(self._proba, 'log'))
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            return {
+                'mean': s(self._proba, 'log')
+            }
+        elif variable == 'proba':
+            return {
+                'log': s(x, 1)
+            }
+        else:
+            raise KeyError(variable)

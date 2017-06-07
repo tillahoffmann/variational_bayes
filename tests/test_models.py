@@ -10,9 +10,9 @@ def test_model():
     q_precision = vb.GammaDistribution(1e-3, 1e-3)
 
     # Define likelihoods
-    likelihood = vb.NormalLikelihood(x, q_mean, q_precision)
-    mean_prior = vb.NormalLikelihood(q_mean, 0, 1e-4)
-    precision_prior = vb.GammaLikelihood(q_precision, 1e-3, 1e-3)
+    likelihood = vb.NormalDistribution(q_mean, q_precision).likelihood(x)
+    mean_prior = vb.NormalDistribution(0, 1e-4).likelihood(q_mean)
+    precision_prior = vb.GammaDistribution(1e-3, 1e-3).likelihood(q_precision)
 
     # Define the model and update
     model = vb.Model({'mean': q_mean, 'precision': q_precision},
@@ -30,8 +30,8 @@ def test_reshape():
     # Define factors and likelihood (using reshape)
     q = vb.NormalDistribution(np.zeros(25), np.ones(25) * 1e-3)
     reshaped = vb.ReshapedDistribution(q, (5, 5))
-    likelihood = vb.NormalLikelihood(x, reshaped, 1)
-    model = vb.Model({'mean': q}, [likelihood, vb.NormalLikelihood(q, 0, 1e-3)])
+    likelihood = vb.NormalDistribution(reshaped, 1).likelihood(x)
+    model = vb.Model({'mean': q}, [likelihood, vb.NormalDistribution(0, 1e-3).likelihood(q)])
 
     # Check the natural parameters
     for factor in ['mean', q]:

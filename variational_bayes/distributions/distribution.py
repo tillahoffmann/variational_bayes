@@ -1,9 +1,8 @@
 import numbers
-import collections
 import numpy as np
 import scipy.special
 
-from ..util import sum_leading_dims
+from ..util import sum_leading_dims, array_repr
 
 
 class statistic:
@@ -32,15 +31,20 @@ class Distribution:
     Base class for distributions that act as factors in the approximate posterior.
     """
     sample_ndim = None
-    likelihood = None
 
     def __init__(self, **parameters):
         # Define a cache for statistics
         self._statistics = {}
-        self.parameters = {key: np.asarray(value) for key, value in parameters.items()}
+        self.parameters = {key: value if isinstance(value, Distribution) else np.asarray(value)
+                           for key, value in parameters.items()}
         self.assert_valid_parameters()
 
     def update(self, canonical_parameters):
+        """
+        Update the distribution with the given canonical paramters.
+
+        The statistics cache is automatically cleared.
+        """
         # Clear the statistics cache
         self._statistics.clear()
         # Update the canonical parameters
@@ -55,6 +59,11 @@ class Distribution:
         self.assert_valid_parameters()
 
     def update_from_natural_parameters(self, natural_parameters):
+        """
+        Update the distribution from the given natural parameters.
+
+        The statistics cache is automatically cleared.
+        """
         if not isinstance(natural_parameters, dict):
             natural_parameters = self.aggregate_natural_parameters(natural_parameters)
         self.update(self.canonical_parameters(natural_parameters))
@@ -105,6 +114,12 @@ class Distribution:
         return np.ndim(self.mean) - self.sample_ndim
 
     def statistic_ndim(self, statistic):
+        """
+        Get the number of dimensions of the given statistic.
+
+        For example, the dimensionality of the mean is equal to the dimensionality of the sample,
+        the dimensionality of the outer product is two (assuming that samples are vector-valued).
+        """
         if statistic in ('mean', 'square', 'log', 'log1m'):
             return self.sample_ndim
         elif statistic in ('outer', ):
@@ -156,24 +171,86 @@ class Distribution:
         return cls(**cls.canonical_parameters(natural_parameters))
 
     def assert_valid_parameters(self):
+        """
+        Validate that the parameters of the distribution are valid.
+        """
+        raise NotImplementedError
+
+    def natural_parameters(self, x, variable):
+        """
+        Evaluate the natural parameters associated with `variable` given observation `x`.
+        """
         raise NotImplementedError
 
     def log_proba(self, x):
-        assert self.likelihood is not None, "likelihood is not defined for %s" % self
-        return self.likelihood.evaluate(x, **self.parameters)
+        """
+        Evaluate the expected log-probability given observation `x`.
+        """
+        raise NotImplementedError
+
+    def likelihood(self, x):
+        """
+        Obtain a likelihood for observation `x` under this distribution.
+        """
+        return Likelihood(self, x)
+
+    @property
+    def _repr_parameters(self):
+        return ["%s=%s" % (key, array_repr(value) if isinstance(value, np.ndarray) else value)
+                for key, value in self.parameters.items()]
+
+    def __repr__(self):
+        return "%s@0x%x(%s)" % (self.__class__.__name__, id(self), ", ".join(self._repr_parameters))
 
 
-class ReshapedDistribution(Distribution):
-    def __init__(self, distribution, newshape):
-        self._distribution = distribution
+class ChildDistribution(Distribution):  # pylint: disable=W0223
+    def __init__(self, parent, **parameters):
+        self._parent = parent
+        super(ChildDistribution, self).__init__(**parameters)
+
+    def assert_valid_parameters(self):
+        assert isinstance(self._parent, Distribution), "parent must be a distribution"
+
+    @property
+    def _repr_parameters(self):
+        parameters = super(ChildDistribution, self)._repr_parameters
+        parameters.insert(0, "parent=%s" % self._parent)
+        return parameters
+
+    def is_child(self, parent):
+        if isinstance(self._parent, ChildDistribution):
+            return self._parent.is_child(parent)
+        else:
+            return self._parent is parent
+
+    def transform_natural_parameters(self, natural_parameters):
+        """
+        Transform the natural parameters of the child distribution to match the natural parameters
+        of the parent distribution.
+        """
+        raise NotImplementedError
+
+
+class ReshapedDistribution(ChildDistribution):
+    """
+    Distribution with the same number of elements but different shape.
+
+    Parameters
+    ----------
+    parent : Distribution
+        distribution to reshape
+    newshape : tuple
+        new batch shape of the distribution (the sample dimension cannot be reshaped)
+    """
+    def __init__(self, parent, newshape):
         self._newshape = newshape
-        super(ReshapedDistribution, self).__init__()
+        super(ReshapedDistribution, self).__init__(parent)
         # Disable the cache
         self._statistics = None
 
     def _reshaped_statistic(self, statistic):
         # Get the statistic
-        value = getattr(self._distribution, statistic)
+        value = getattr(self._parent, statistic)
         # Determine the new shape by popping leading dimensions until the size of popped dimensions
         # matches the desired size
         newsize = np.prod(self._newshape)
@@ -204,17 +281,66 @@ class ReshapedDistribution(Distribution):
         return self._reshaped_statistic('outer')
 
     def assert_valid_parameters(self):
-        self._distribution.assert_valid_parameters()
+        super(ReshapedDistribution, self).assert_valid_parameters()
 
-    @staticmethod
-    def canonical_parameters(natural_parameters):
-        raise NotImplementedError
+    def log_proba(self, x):
+        # Evaluate the probability of the parent distribution and then reshape
+        log_proba = self._parent.log_proba(x)
+        return np.reshape(log_proba, self._newshape)
+
+    @property
+    def _repr_parameters(self):
+        return ["parent=%s" % self._parent, "newshape=%s" % [self._newshape]]
+
+    def transform_natural_parameters(self, natural_parameters):
+        return {key: np.reshape(value, (-1, ) + getattr(self._parent, key).shape)
+                for key, value in natural_parameters.items()}
 
 
-_statistic_names = {
-    1: 'mean',
-    2: 'square',
-}
+class Likelihood:
+    def __init__(self, distribution, x):
+        self.distribution = distribution
+        self.x = x
+
+    def natural_parameters(self, variable):
+        """
+        Evaluate the natural parameters associated with `variable` given observation `x`.
+        """
+        # Get the original natural parameters
+        natural_parameters = self.distribution.natural_parameters(self.x, variable)
+        # Now, for each child distribution, we want to transform the natural parameters to match
+        # the parent distribution
+        current = self[variable]
+        while isinstance(current, ChildDistribution):
+            natural_parameters = current.transform_natural_parameters(natural_parameters)
+            current = current._parent
+        return natural_parameters
+
+    def evaluate(self):
+        """
+        Evaluate the expected log-probability given observation `x`.
+        """
+        return self.distribution.log_proba(self.x)
+
+    def parameter_name(self, parameter):
+        """
+        Get the name of the given parameter.
+        """
+        items = [('x', self.x)]
+        items.extend(self.distribution.parameters.items())
+        for key, value in items:
+            if value is parameter or (isinstance(value, ChildDistribution) and value.is_child(parameter)):
+                return key
+
+    def __getitem__(self, key):
+        if key == 'x':
+            return self.x
+        else:
+            return self.distribution.parameters[key]
+
+    def __repr__(self):
+        return "Likelihood@0x%x(distribution=%s, x=%s)" % \
+            (id(self), self.distribution, array_repr(self.x))
 
 
 def evaluate_statistic(x, statistic):
@@ -233,8 +359,13 @@ def evaluate_statistic(x, statistic):
     value : np.ndarray
         evaluated statistic
     """
+    # Allow shorthands for statistics
+    if statistic == 1:
+        statistic = 'mean'
+    elif statistic == 2:
+        statistic = 'square'
+
     if isinstance(x, Distribution):
-        statistic = _statistic_names.get(statistic, statistic)
         return getattr(x, statistic)
     elif isinstance(statistic, numbers.Real):
         return x ** statistic
@@ -244,8 +375,8 @@ def evaluate_statistic(x, statistic):
         return x * x
     elif statistic == 'log':
         return np.log(x)
-    elif statistic == 'gammaln':
-        return scipy.special.gammaln(x)
+    # elif statistic == 'gammaln':
+    #     return scipy.special.gammaln(x)
     elif statistic == 'outer':
         return x[..., :, None] * x[..., None, :]
     elif statistic == 'logdet':
@@ -254,6 +385,16 @@ def evaluate_statistic(x, statistic):
         return np.log1p(-x)
     elif statistic == 'cov':
         return np.zeros(x.shape + (x.shape[-1], ))
+    elif statistic == 'interaction':
+        assert x.ndim == 2, "interaction statistic is only defined for matrices"
+        zz = np.einsum('ik,jl->ijkl', x, x)
+        # The self-interaction is trivial and does not have off-diagonal elements so we reconstruct
+        # it here
+        i = np.arange(x.shape[0])
+        k = np.arange(x.shape[1])
+        zz[i, i] = 0
+        zz[i, i, k, k] = x
+        return zz
     else:
         raise KeyError(statistic)
 
@@ -262,6 +403,9 @@ s = evaluate_statistic
 
 
 def is_constant(*args):
+    """
+    Determine whether the argument(s) are constant.
+    """
     constant = [not isinstance(x, Distribution) for x in args]
     if len(constant) == 1:
         return constant[0]
@@ -270,6 +414,9 @@ def is_constant(*args):
 
 
 def assert_constant(*args):
+    """
+    Assert that the argument(s) are constant.
+    """
     if len(args) == 1:
         assert is_constant(*args), "variable must be constant"
     else:

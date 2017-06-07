@@ -1,38 +1,14 @@
 import numpy as np
 from scipy.special import digamma, gammaln
 
-from .distribution import Distribution, s, statistic, assert_constant
-from .likelihood import Likelihood
-
-
-class DirichletLikelihood(Likelihood):
-    def __init__(self, x, alpha):
-        super(DirichletLikelihood, self).__init__(x=x, alpha=alpha)
-
-    @staticmethod
-    def evaluate(x, alpha):   # pylint: disable=W0221
-        assert_constant(alpha)
-        return gammaln(np.sum(alpha, axis=-1)) - np.sum(gammaln(alpha), axis=-1) + \
-            np.sum((alpha - 1) * s(x, 'log'), axis=-1)
-
-    @staticmethod
-    def natural_parameters(variable, x, alpha):   # pylint: disable=W0221
-        assert_constant(alpha)
-        if variable == 'x':
-            return {
-                'log': alpha - 1
-            }
-        elif variable == 'alpha':
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
+from .distribution import Distribution, statistic, s, assert_constant
 
 
 class DirichletDistribution(Distribution):
-    likelihood = DirichletLikelihood
     sample_ndim = 1
 
     def __init__(self, alpha):
+        assert_constant(alpha)
         super(DirichletDistribution, self).__init__(alpha=alpha)
 
     @statistic
@@ -67,3 +43,17 @@ class DirichletDistribution(Distribution):
         return {
             'alpha': natural_parameters['log'] + 1
         }
+
+    def log_proba(self, x):
+        return gammaln(np.sum(self._alpha, axis=-1)) - np.sum(gammaln(self._alpha), axis=-1) + \
+            np.sum((self._alpha - 1) * s(x, 'log'), axis=-1)
+
+    def natural_parameters(self, x, variable):
+        if variable == 'x':
+            return {
+                'log': self._alpha - 1
+            }
+        elif variable == 'alpha':
+            raise NotImplementedError(variable)
+        else:
+            raise KeyError(variable)

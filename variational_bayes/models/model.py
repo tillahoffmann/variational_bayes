@@ -1,7 +1,7 @@
 import numbers
+import numpy as np
 
-from ..util import *
-from ..distributions import Distribution, ReshapedDistribution
+from ..distributions import Distribution, ChildDistribution
 
 
 def evaluate_natural_parameters(factor, likelihoods, exclude=None):
@@ -17,13 +17,7 @@ def evaluate_natural_parameters(factor, likelihoods, exclude=None):
         parameter = likelihood.parameter_name(factor)
         if parameter:
             # Get the natural parameters
-            natural_parameters = likelihood.natural_parameters(
-                parameter, **likelihood.parameters
-            )
-            # Check if the distribution was reshaped and apply the transforms if necessary
-            if isinstance(likelihood.parameters[parameter], ReshapedDistribution):
-                natural_parameters = {key: np.reshape(value, (-1, *getattr(factor, key).shape))
-                                      for key, value in natural_parameters.items()}
+            natural_parameters = likelihood.natural_parameters(parameter)
             args.append(natural_parameters)
     return args
 
@@ -63,7 +57,7 @@ class Model:
         priors = {k: [] for k in factors.values()}
 
         for likelihood in self._likelihoods:
-            x = likelihood.parameters['x']
+            x = likelihood.x
             if isinstance(x, Distribution):
                 priors[x].append(likelihood)
 
@@ -71,6 +65,10 @@ class Model:
         for factor, p in priors.items():
             assert p, "%s does not have a prior" % lookup[factor]
             assert len(p) < 2, "%s has more than one prior: %s" % (lookup[factor], p)
+
+        # Ensure only real distributions are added as factors and no child distributions
+        for key, value in self._factors.items():
+            assert not isinstance(value, ChildDistribution), "%s is a ChildDistribution" % key
 
     def __getitem__(self, name):
         return self._factors[name]
@@ -155,8 +153,7 @@ class Model:
     @property
     def joint(self):
         """float : expected joint distribution"""
-        return np.sum([np.sum(likelihood.evaluate(**likelihood.parameters))
-                       for likelihood in self._likelihoods])
+        return np.sum([np.sum(likelihood.evaluate()) for likelihood in self._likelihoods])
 
     @property
     def entropies(self):
