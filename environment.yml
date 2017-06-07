@@ -2,7 +2,7 @@ name: variational_bayes
 channels:
   - conda-forge
 dependencies:
-  - python=3.5
+  - python
   - pytest
   - pytest-cov
   - numpy
@@ -12,6 +12,7 @@ dependencies:
   - jupyter
   - pylint
   - requests
+  - cython
   - pip:
     - tqdm
     - mechanicalsoup
