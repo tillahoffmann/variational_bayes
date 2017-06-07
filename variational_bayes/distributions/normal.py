@@ -2,6 +2,7 @@ import operator
 import numpy as np
 
 from .distribution import Distribution, statistic, s
+from ..util import assert_broadcastable
 
 
 class NormalDistribution(Distribution):
@@ -53,7 +54,7 @@ class NormalDistribution(Distribution):
         assert np.all(np.isfinite(mean)), "mean must be finite"
         np.testing.utils.assert_array_compare(operator.__le__, 0, precision,
                                               "precision must be non-negative")
-        assert np.shape(mean) == np.shape(precision), "shape of mean and precision must match"
+        assert_broadcastable(mean, precision)
 
     def log_proba(self, x):
         return 0.5 * (s(self._precision, 'log') - np.log(2 * np.pi) - s(self._precision, 1) * (
