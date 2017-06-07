@@ -1,9 +1,9 @@
 import numpy as np
-from .distribution import Distribution, s, statistic
+from .distribution import ChildDistribution, s, statistic
 from ..util import pad_dims, sum_trailing_dims, softmax
 
 
-class MixtureDistribution(Distribution):
+class MixtureDistribution(ChildDistribution):  # pylint: disable=W0223
     """
     A mixture distribution.
 
@@ -15,34 +15,28 @@ class MixtureDistribution(Distribution):
         parent distribution of the mixture
     """
     def __init__(self, z, parent):
-        self.parent = parent
-        super(MixtureDistribution, self).__init__(z=z)
+        super(MixtureDistribution, self).__init__(parent, z=z)
 
     def log_proba(self, x):
         # Evaluate the log probability of the observations under the individual distributions with
         # expected shape `(n, k)`, where `n` is the number of observations and `k` is the number
         # of groups
-        log_proba = self.parent.log_proba(x)
+        log_proba = self._parent.log_proba(x)
         # Contract with the expected indicators of shape `(n, k)`
         return np.sum(s(self._z, 1) * log_proba, axis=-1)
-
-    def parameter_name(self, parameter):
-        name = super(MixtureDistribution, self).parameter_name(parameter)
-        # Get the parameter name from the parent distribution
-        if name is None:
-            name = self.parent.parameter_name(parameter)
-        return name
 
     def natural_parameters(self, x, variable):
         if variable == 'z':
             # Evaluate the log probability of the observations under the individual distributions
             return {
-                'mean': self.parent.log_proba(x)
+                'mean': self._parent.log_proba(x)
             }
         else:
+            return self._parent.natural_parameters(x, variable)
+            """
             # Get the natural parameters of the parent distribution and compute the
             # indicator-weighted mean
-            natural_parameters = self.parent.natural_parameters(x, variable)
+            natural_parameters = self._parent.natural_parameters(x, variable)
             z = s(self._z, 1)
             # We sum over the leading dimensions of the indicator but the last (which corresponds to
             # different components of the mixture)
@@ -51,53 +45,37 @@ class MixtureDistribution(Distribution):
                 # Aggregate the parameters. The indicators need to be padded
                 natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
             return natural_parameters
+            """
+    def transform_natural_parameters(self, natural_parameters):
+        raise ValueError('foo')
+        z = s(self._z, 1)
+        # We sum over the leading dimensions of the indicator but the last (which corresponds to
+        # different components of the mixture)
+        axis = tuple(range(z.ndim - 1))
+        for key, value in natural_parameters.items():
+            # Aggregate the parameters. The indicators need to be padded
+            natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
+        return natural_parameters
 
     def assert_valid_parameters(self):
+        super(MixtureDistribution, self).assert_valid_parameters()
         z = s(self._z, 1)
         assert z.ndim > 0, "z must be at least one-dimensional"
-        assert isinstance(self.parent, Distribution), "parent distribution must be a " \
-            "Distribution instance"
-
-    @statistic
-    def mean(self):
-        raise NotImplementedError
-
-    @statistic
-    def var(self):
-        raise NotImplementedError
-
-    @statistic
-    def entropy(self):
-        raise NotImplementedError
 
 
-class InteractingMixtureDistribution(Distribution):
+class InteractingMixtureDistribution(ChildDistribution):  # pylint: disable=W0223
     def __init__(self, z, parent):
-        self.parent = parent
-        super(InteractingMixtureDistribution, self).__init__(z=z)
+        super(InteractingMixtureDistribution, self).__init__(parent, z=z)
 
     def assert_valid_parameters(self):
+        super(InteractingMixtureDistribution, self).assert_valid_parameters()
         z = s(self._z, 1)
-        assert z.ndim > 0, "z must be at least one-dimensional"
-        assert isinstance(self.parent, Distribution), "parent distribution must be a " \
-            "Distribution instance"
-
-    @statistic
-    def mean(self):
-        raise NotImplementedError
-
-    @statistic
-    def var(self):
-        raise NotImplementedError
-
-    @statistic
-    def entropy(self):
-        raise NotImplementedError
+        assert z.ndim == 2, "z must be two-dimensional"
 
     def log_proba(self, x):
         # Evaluate the log-probability of the parent distribution with expected shape `(n, n, k, k)`,
         # where `n` is the number of observations and `k` is the number of components
-        log_proba = self.parent.log_proba(x)
+        log_proba = self._parent.log_proba(x)
         # Sum over the trailing dimensions weighted by the interaction
         zz = s(self.z, 'interaction')
         return np.sum(log_proba * pad_dims(zz, log_proba.ndim), axis=(0, 1))
@@ -108,7 +86,7 @@ class InteractingMixtureDistribution(Distribution):
         else:
             # Get the natural parameters from the parent distribution which should have shape
             # `(n, n, k, k, ...)` where `...` denotes any sample dimensions
-            natural_parameters = self.parent.natural_parameters(x, variable)
+            natural_parameters = self._parent.natural_parameters(x, variable)
             zz = s(self.z, 'interaction')
             # Aggregate over the two leading dimensions
             for key, value in natural_parameters.items():
@@ -155,7 +133,7 @@ class InteractingMixtureDistribution(Distribution):
         natural_parameters = np.ones(np.broadcast(natural_parameters, proba).shape) * natural_parameters
 
         # Evaluate the likelihood
-        likelihood = self.parent.log_proba(x)
+        likelihood = self._parent.log_proba(x)
         assert likelihood.ndim >= 4, "evaluated likelihood must have at least four dimensions"
         assert likelihood.shape[:4] == (n, n, k, k), "evaluated likelihood must have leading shape " \
             "%s" % [(n, n, k, k)]
@@ -179,10 +157,3 @@ class InteractingMixtureDistribution(Distribution):
         return {
             'mean': np.log(proba)
         }
-
-    def parameter_name(self, parameter):
-        name = super(InteractingMixtureDistribution, self).parameter_name(parameter)
-        # Get the parameter name from the parent distribution
-        if name is None:
-            name = self.parent.parameter_name(parameter)
-        return name
