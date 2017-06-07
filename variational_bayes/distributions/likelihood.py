@@ -21,9 +21,8 @@ class Likelihood:
         """
         if parameter is self.x:
             return 'x'
-        # Iterate over all parameters of the distribution
-        for key, value in self.distribution.parameters.items():
-            if value is parameter:
-                return key
+        else:
+            return self.distribution.parameter_name(parameter)
 
-        return None
+    def __repr__(self):
+        return "Likelhood(%s, %s)" % (self.distribution, self.x)
