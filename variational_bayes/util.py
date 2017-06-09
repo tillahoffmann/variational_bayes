@@ -48,9 +48,11 @@ def sum_trailing_dims(x, ndim):
 
 def pad_dims(x, ndim):
     """
-    Pad `x` with dimensions of size one to ensure it has the desired `ndim`.
+    Pad `x` with dimensions of size one on the right to ensure it has the desired `ndim`.
     """
     shape = np.shape(x)
+    if ndim <= len(shape):
+        return x
     return np.reshape(x, shape + (1, ) * (ndim - len(shape)))
 
 
