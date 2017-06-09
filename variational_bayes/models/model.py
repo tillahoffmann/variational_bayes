@@ -45,9 +45,10 @@ class Model:
     """
     Model combining factors of the posterior and likelihoods.
     """
-    def __init__(self, factors, likelihoods):
+    def __init__(self, factors, likelihoods, update_order=None):
         self._factors = factors
         self._likelihoods = likelihoods
+        self._update_order = update_order
 
         # Run over all the likelihoods, extract the 'x' parameter and ensure the factors all have
         # a prior
@@ -73,7 +74,7 @@ class Model:
     def __getitem__(self, name):
         return self._factors[name]
 
-    def update(self, steps, tqdm=None, order=None, convergence_predicate=None):
+    def update(self, steps, tqdm=None, update_order=None, convergence_predicate=None):
         """
         Update the factors of the approximate posterior.
 
@@ -84,7 +85,7 @@ class Model:
             `convergence_predicate` must be provided
         tqdm : None or callable
             progress indicator
-        order : list[str]
+        update_order : list[str]
             order in which to update the parameters
         convergence_predicate : float or callable
             predicate to assess convergence. If a `float`, denotes the change in evidence lower
@@ -106,16 +107,16 @@ class Model:
             steps = iter(int, 1)
         if tqdm:
             steps = tqdm(steps)
-        if order is None:
-            order = self._factors
         if isinstance(convergence_predicate, numbers.Real):
             convergence_predicate = ConvergencePredicate(convergence_predicate, 1)
+
+        update_order = update_order or (self._update_order or self._factors)
 
         elbo = [self.elbo]
 
         for _ in steps:
             # Update each factor
-            for factor in order:
+            for factor in update_order:
                 self.update_factor(factor)
 
             elbo.append(self.elbo)

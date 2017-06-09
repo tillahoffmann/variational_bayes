@@ -3,8 +3,8 @@ from ..distributions import InteractingMixtureDistribution, Distribution
 
 
 class InteractingMixtureModel(Model):
-    def __init__(self, factors, likelihoods):
-        super(InteractingMixtureModel, self).__init__(factors, likelihoods)
+    def __init__(self, factors, likelihoods, update_order=None):
+        super(InteractingMixtureModel, self).__init__(factors, likelihoods, update_order)
         # Determine the interacting mixture likelihood and the corresponding factor
         self._interacting_likelihood = None
         self._indicators = None

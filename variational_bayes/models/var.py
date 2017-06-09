@@ -7,14 +7,14 @@ from ..distributions import NormalDistribution, GammaDistribution, MultiNormalDi
 from .interacting_mixture_model import InteractingMixtureModel
 
 
-def var_model(x, order, num_groups, given=None):
+def var_model(x, order, num_groups, update_order=None, given=None):
     """
     Build a hierarchical vector-autoregressive model.
 
     Given is the set of factors that is assumed known for debugging purposes.
     """
     given = given or {}
-    num_steps, num_nodes = x.shape
+    _, num_nodes = x.shape
 
     epsilon = 1e-6
 
@@ -73,7 +73,7 @@ def var_model(x, order, num_groups, given=None):
         InteractingMixtureDistribution(
             q_z, MultiNormalDistribution(q_adjacency_mean, q_adjacency_precision)
         ).likelihood(
-            ReshapedDistribution(q_adjacency, (num_nodes, num_nodes, 1, 1, order))
+            ReshapedDistribution(q_adjacency, (num_nodes, num_nodes, 1, 1))
         ),
         CategoricalDistribution(q_density).likelihood(q_z),
         VARDistribution(q_z, q_coefficients, q_noise_precision).likelihood(
@@ -89,6 +89,11 @@ def var_model(x, order, num_groups, given=None):
         WishartDistribution(order - 1 + 1e-6, np.eye(order) * 1e-6).likelihood(q_adjacency_precision)
     ]
 
+    update_order = update_order or [
+        "coefficients", "adjacency_mean", "adjacency_precision", "bias_mean", "bias_precision",
+        "noise_precision", "z", "density"
+    ]
+
     factors = {key: value for key, value in factors.items() if isinstance(value, Distribution)}
-    model = InteractingMixtureModel(factors, likelihoods)
+    model = InteractingMixtureModel(factors, likelihoods, update_order)
     return model
