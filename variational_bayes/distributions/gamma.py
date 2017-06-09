@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.special
 
-from .distribution import Distribution, statistic, s, assert_constant
+from .distribution import Distribution, statistic, s, assert_constant, is_dependent
 
 
 class GammaDistribution(Distribution):
@@ -41,8 +41,8 @@ class GammaDistribution(Distribution):
     @staticmethod
     def canonical_parameters(natural_parameters):
         return {
-            'shape': natural_parameters['log'] + 1,
-            'scale': -natural_parameters['mean']
+            'shape': natural_parameters.pop('log') + 1,
+            'scale': -natural_parameters.pop('mean')
         }
 
     def assert_valid_parameters(self):
@@ -55,12 +55,12 @@ class GammaDistribution(Distribution):
             self._scale * s(x, 1) - scipy.special.gammaln(self._shape)
 
     def natural_parameters(self, x, variable):
-        if variable == 'x':
+        if is_dependent(x, variable):
             return {
                 'log': self._shape - 1.0,
                 'mean': - self._scale
             }
-        elif variable in ('shape', 'scale'):
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
+        elif is_dependent(self._shape, variable):
+            raise NotImplementedError('shape')
+        elif is_dependent(self._scale, variable):
+            raise NotImplementedError('scale')

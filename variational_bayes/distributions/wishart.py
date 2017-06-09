@@ -2,7 +2,7 @@ import operator
 import numpy as np
 from scipy.special import multigammaln
 
-from .distribution import Distribution, statistic, s, assert_constant
+from .distribution import Distribution, statistic, s, assert_constant, is_dependent
 from ..util import multidigamma, diag, is_positive_definite
 
 
@@ -48,9 +48,9 @@ class WishartDistribution(Distribution):
 
     @staticmethod
     def canonical_parameters(natural_parameters):
-        p = natural_parameters['mean'].shape[-1]
-        shape = 2 * natural_parameters['logdet'] + p + 1
-        scale = - 2 * natural_parameters['mean']
+        scale = - 2 * natural_parameters.pop('mean')
+        p = scale.shape[-1]
+        shape = 2 * natural_parameters.pop('logdet') + p + 1
         return {
             'shape': shape,
             'scale': scale,
@@ -59,9 +59,9 @@ class WishartDistribution(Distribution):
     def assert_valid_parameters(self):
         assert np.ndim(self._shape) + 2 == np.ndim(self._scale), "scale parameter must have " \
             "dimensionality two larger than shape parameter"
-        np.testing.utils.assert_array_compare(operator.__le__, self._scale.shape[-1], self._shape,
+        np.testing.utils.assert_array_compare(operator.__le__, self._scale.shape[-1] - 1, self._shape,
                                               "shape must not be smaller than the dimensionality "
-                                              "of the matrix")
+                                              "of the matrix less one")
         assert is_positive_definite(self._scale), "scale must be positive definite"
 
     def log_proba(self, x):
@@ -71,13 +71,13 @@ class WishartDistribution(Distribution):
             multigammaln(0.5 * self._shape, p) + 0.5 * self._shape * s(self._scale, 'logdet')
 
     def natural_parameters(self, x, variable):
-        if variable == 'x':
+        if is_dependent(x, variable):
             p = self._scale.shape[-1]
             return {
                 'logdet': 0.5 * (self._shape - p - 1),
                 'mean': - 0.5 * self._scale,
             }
-        elif variable in ('shape', 'scale'):
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
+        elif is_dependent(self._shape, variable):
+            raise NotImplementedError('shape')
+        elif is_dependent(self._scale, variable):
+            raise NotImplementedError('scale')

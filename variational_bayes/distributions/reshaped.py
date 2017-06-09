@@ -1,9 +1,9 @@
 import numpy as np
 
-from .distribution import ChildDistribution, s
+from .distribution import DerivedDistribution, s, is_dependent
 
 
-class ReshapedDistribution(ChildDistribution):
+class ReshapedDistribution(DerivedDistribution):
     """
     Distribution with the same number of elements but different shape.
 
@@ -15,6 +15,7 @@ class ReshapedDistribution(ChildDistribution):
         new batch shape of the distribution (the sample dimension cannot be reshaped)
     """
     def __init__(self, parent, newshape):
+        self._parent = parent
         self._newshape = newshape
         super(ReshapedDistribution, self).__init__(parent)
 
@@ -46,6 +47,11 @@ class ReshapedDistribution(ChildDistribution):
     def _repr_parameters(self):
         return ["parent=%s" % self._parent, "newshape=%s" % [self._newshape]]
 
-    def transform_natural_parameters(self, natural_parameters):
-        return {key: np.reshape(value, (-1, ) + getattr(self._parent, key).shape)
-                for key, value in natural_parameters.items()}
+    def transform_natural_parameters(self, distribution, natural_parameters):
+        if is_dependent(self._parent, distribution):
+            for key, value in natural_parameters.items():
+                shape = s(self._parent, key).shape
+                natural_parameters[key] = value.reshape(shape)
+            return natural_parameters
+        else:
+            raise KeyError

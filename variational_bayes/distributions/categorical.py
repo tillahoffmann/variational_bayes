@@ -1,7 +1,7 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, statistic, s
+from .distribution import Distribution, statistic, s, is_dependent
 from ..util import softmax
 
 
@@ -55,7 +55,7 @@ class CategoricalDistribution(Distribution):
     @staticmethod
     def canonical_parameters(natural_parameters):
         return {
-            'proba': softmax(natural_parameters['mean'])
+            'proba': softmax(natural_parameters.pop('mean'))
         }
 
     def assert_valid_parameters(self):
@@ -68,13 +68,11 @@ class CategoricalDistribution(Distribution):
         return np.einsum('...i,...i', s(x, 1), s(self._proba, 'log'))
 
     def natural_parameters(self, x, variable):
-        if variable == 'x':
+        if is_dependent(x, variable):
             return {
                 'mean': s(self._proba, 'log')
             }
-        elif variable == 'proba':
+        elif is_dependent(self._proba, variable):
             return {
                 'log': s(x, 1)
             }
-        else:
-            raise KeyError(variable)

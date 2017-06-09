@@ -1,6 +1,6 @@
 import numbers
+import itertools as it
 import numpy as np
-import scipy.special
 
 from ..util import sum_leading_dims, array_repr
 
@@ -66,7 +66,10 @@ class Distribution:
         """
         if not isinstance(natural_parameters, dict):
             natural_parameters = self.aggregate_natural_parameters(natural_parameters)
-        self.update(self.canonical_parameters(natural_parameters))
+        canonical_parameters = self.canonical_parameters(natural_parameters)
+        assert not natural_parameters, "remaining statistics: %s" % \
+            ", ".join(natural_parameters.keys())
+        self.update(canonical_parameters)
 
     def __getattr__(self, name):
         if name.strip('_') in self.parameters:
@@ -203,10 +206,13 @@ class Distribution:
         return "%s@0x%x(%s)" % (self.__class__.__name__, id(self), ", ".join(self._repr_parameters))
 
 
-class ChildDistribution(Distribution):
-    def __init__(self, parent, **parameters):
-        self._parent = parent
-        super(ChildDistribution, self).__init__(**parameters)
+class DerivedDistribution(Distribution):
+    """
+    A derived distribution which is a deterministic function of one or more distributions.
+    """
+    def __init__(self, *parents, **parameters):
+        self._parents = parents
+        super(DerivedDistribution, self).__init__(**parameters)
         # Disable any caching
         self._statistics = None
 
@@ -215,17 +221,18 @@ class ChildDistribution(Distribution):
 
     @property
     def _repr_parameters(self):
-        parameters = super(ChildDistribution, self)._repr_parameters
-        parameters.insert(0, "parent=%s" % self._parent)
+        parameters = super(DerivedDistribution, self)._repr_parameters
+        parameters.insert(0, "parents=%s" % [self._parents])
         return parameters
 
-    def is_child(self, parent):
-        if isinstance(self._parent, ChildDistribution):
-            return self._parent.is_child(parent)
-        else:
-            return self._parent is parent
+    def is_child(self, distribution):
+        for parent in self._parents:
+            if distribution is parent or (isinstance(parent, DerivedDistribution)
+                                          and parent.is_child(distribution)):
+                return True
+        return False
 
-    def transform_natural_parameters(self, natural_parameters):
+    def transform_natural_parameters(self, distribution, natural_parameters):
         """
         Transform the natural parameters of the child distribution to match the natural parameters
         of the parent distribution.
@@ -253,7 +260,7 @@ class ChildDistribution(Distribution):
 
     def __getattr__(self, name):
         try:
-            return super(ChildDistribution, self).__getattr__(name)
+            return super(DerivedDistribution, self).__getattr__(name)
         except AttributeError:
             return self._transformed_statistic(name)
 
@@ -267,16 +274,21 @@ class Likelihood:
         """
         Evaluate the natural parameters associated with `variable` given observation `x`.
         """
-        if not isinstance(variable, str):
-            variable = self.parameter_name(variable)
         # Get the original natural parameters
         natural_parameters = self.distribution.natural_parameters(self.x, variable)
+        if natural_parameters is None:
+            return None
         # Now, for each child distribution, we want to transform the natural parameters to match
         # the parent distribution
-        current = self[variable]
-        while isinstance(current, ChildDistribution):
-            natural_parameters = current.transform_natural_parameters(natural_parameters)
-            current = current._parent
+        for current in it.chain([self.x], self.distribution.parameters.values()):
+            if is_dependent(current, variable):
+                break
+
+        while isinstance(current, DerivedDistribution):
+            natural_parameters = current.transform_natural_parameters(variable, natural_parameters)
+            for parent in current._parents:
+                if is_dependent(parent, variable):
+                    current = parent
         return natural_parameters
 
     def evaluate(self):
@@ -284,22 +296,6 @@ class Likelihood:
         Evaluate the expected log-probability given observation `x`.
         """
         return self.distribution.log_proba(self.x)
-
-    def parameter_name(self, parameter):
-        """
-        Get the name of the given parameter.
-        """
-        items = [('x', self.x)]
-        items.extend(self.distribution.parameters.items())
-        for key, value in items:
-            if value is parameter or (isinstance(value, ChildDistribution) and value.is_child(parameter)):
-                return key
-
-    def __getitem__(self, key):
-        if key == 'x':
-            return self.x
-        else:
-            return self.distribution.parameters[key]
 
     def __repr__(self):
         return "Likelihood@0x%x(distribution=%s, x=%s)" % \
@@ -351,12 +347,6 @@ def evaluate_statistic(x, statistic):
     elif statistic == 'interaction':
         assert x.ndim == 2, "interaction statistic is only defined for matrices"
         zz = np.einsum('ik,jl->ijkl', x, x)
-        # The self-interaction is trivial and does not have off-diagonal elements so we reconstruct
-        # it here
-        i = np.arange(x.shape[0])
-        k = np.arange(x.shape[1])
-        zz[i, i] = 0
-        zz[i, i, k, k] = x
         return zz
     else:
         raise KeyError(statistic)
@@ -384,3 +374,18 @@ def assert_constant(*args):
         assert is_constant(*args), "variable must be constant"
     else:
         assert all(is_constant(*args)), "variables must be constant"
+
+
+def is_dependent(parent, child):
+    """
+    Check whether `child` depends on `parent` deterministically.
+    """
+    # The child and parent are identical
+    if child is parent:
+        return True
+    # The parent is a derived distribution, so check the parents recursively
+    if isinstance(parent, DerivedDistribution):
+        for _parent in parent._parents:
+            if is_dependent(_parent, child):
+                return True
+    return False

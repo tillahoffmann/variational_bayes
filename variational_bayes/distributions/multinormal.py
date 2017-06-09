@@ -1,6 +1,6 @@
 import numpy as np
 
-from .distribution import Distribution, statistic, s
+from .distribution import Distribution, statistic, s, is_dependent
 from ..util import diag, is_positive_definite
 
 
@@ -36,9 +36,9 @@ class MultiNormalDistribution(Distribution):
 
     @staticmethod
     def canonical_parameters(natural_parameters):
-        precision = - 2 * natural_parameters['outer']
+        precision = - 2 * natural_parameters.pop('outer')
         cov = np.linalg.inv(precision)
-        mean = np.einsum('...ij,...j', cov, natural_parameters['mean'])
+        mean = np.einsum('...ij,...j', cov, natural_parameters.pop('mean'))
         return {
             'mean': mean,
             'precision': precision,
@@ -65,22 +65,20 @@ class MultiNormalDistribution(Distribution):
         # Get an object of ones with the correct broadcasted shape
         ones = np.ones(np.broadcast(s(x, 1), s(self._mean, 1)).shape)
 
-        if variable == 'x':
+        if is_dependent(x, variable):
             return {
                 'mean': np.einsum('...ij,...i', s(self._precision, 1), s(self._mean, 1)) * ones,
                 'outer': - 0.5 * s(self._precision, 1) * ones[..., None]
             }
-        elif variable == 'mean':
+        elif is_dependent(self._mean, variable):
             return {
                 'mean': np.einsum('...ij,...i', s(self._precision, 1), s(x, 1)) * ones,
                 'outer': - 0.5 * s(self._precision, 1) * ones[..., None]
             }
-        elif variable == 'precision':
+        elif is_dependent(self._precision, variable):
             _outer = s(x, 1)[..., None, :] * s(self._mean, 1)[..., :, None]
             return {
                 'logdet': 0.5 * ones[..., 0],
                 'mean': - 0.5 * (s(x, 'outer') + s(self._mean, 'outer') -
                                  _outer - np.swapaxes(_outer, -1, -2))
             }
-        else:
-            raise KeyError(variable)
