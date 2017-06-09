@@ -93,6 +93,7 @@ ENV/
 playground/
 .vscode/
 examples/*.html
+examples/*.py
 data/sp100/**/*.csv
 data/sp100/**/*.log
 

@@ -2,11 +2,17 @@
 
 NOTEBOOKS = $(wildcard examples/*.ipynb)
 NOTEBOOK_OUTPUTS = $(NOTEBOOKS:.ipynb=.html)
+SCRIPTS = $(NOTEBOOKS:.ipynb=.py)
 
 examples : $(NOTEBOOK_OUTPUTS)
 
 $(NOTEBOOK_OUTPUTS) : %.html : %.ipynb
 	jupyter nbconvert --execute --ExecutePreprocessor.timeout=None --allow-errors $<
+
+scripts : $(SCRIPTS)
+
+$(SCRIPTS) : %.py : %.ipynb
+	jupyter nbconvert --to python $<
 
 clean :
 	rm examples/*.html
