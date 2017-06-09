@@ -1,7 +1,7 @@
 import operator
 import numpy as np
 
-from .distribution import Distribution, statistic, s
+from .distribution import Distribution, statistic, s, is_dependent
 from ..util import assert_broadcastable
 
 
@@ -40,8 +40,8 @@ class NormalDistribution(Distribution):
 
     @staticmethod
     def canonical_parameters(natural_parameters):
-        precision = - 2 * natural_parameters['square']
-        mean = natural_parameters['mean'] / precision
+        precision = - 2 * natural_parameters.pop('square')
+        mean = natural_parameters.pop('mean') / precision
         return {
             'mean': mean,
             'precision': precision,
@@ -64,22 +64,20 @@ class NormalDistribution(Distribution):
     def natural_parameters(self, x, variable):
         ones = np.ones(np.broadcast(s(x, 1), s(self._mean, 1)).shape)
 
-        if variable == 'x':
+        if is_dependent(x, variable):
             return {
                 'mean': s(self._precision, 1) * s(self._mean, 1) * ones,
                 'square': - 0.5 * s(self._precision, 1) * ones
             }
-        elif variable == 'mean':
+        elif is_dependent(self._mean, variable):
             return {
                 'mean': s(self._precision, 1) * s(x, 1) * ones,
                 'square': - 0.5 * s(self._precision, 1) * ones
             }
-        elif variable == 'precision':
+        elif is_dependent(self._precision, variable):
             return {
                 'log': 0.5 * ones,
                 'mean': - 0.5 * (
                     s(x, 2) - 2 * s(x, 1) * s(self._mean, 1) + s(self._mean, 2)
                 )
             }
-        else:
-            raise KeyError(variable)

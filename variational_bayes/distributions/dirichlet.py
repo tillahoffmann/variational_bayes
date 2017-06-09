@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import digamma, gammaln
 
-from .distribution import Distribution, statistic, s, assert_constant
+from .distribution import Distribution, statistic, s, assert_constant, is_dependent
 
 
 class DirichletDistribution(Distribution):
@@ -41,7 +41,7 @@ class DirichletDistribution(Distribution):
     @staticmethod
     def canonical_parameters(natural_parameters):
         return {
-            'alpha': natural_parameters['log'] + 1
+            'alpha': natural_parameters.pop('log') + 1
         }
 
     def log_proba(self, x):
@@ -49,11 +49,9 @@ class DirichletDistribution(Distribution):
             np.sum((self._alpha - 1) * s(x, 'log'), axis=-1)
 
     def natural_parameters(self, x, variable):
-        if variable == 'x':
+        if is_dependent(x, variable):
             return {
                 'log': self._alpha - 1
             }
-        elif variable == 'alpha':
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
+        elif is_dependent(self._alpha, variable):
+            raise NotImplementedError('alpha')

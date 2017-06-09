@@ -16,3 +16,7 @@ def test_plot_proba(distribution):
 
 def test_plot_comparison(distribution):
     vb.plot_comparison(distribution, distribution.mean)
+
+
+def test_plot_residuals(distribution):
+    vb.plot_residuals(distribution, distribution.mean)

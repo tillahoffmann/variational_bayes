@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import digamma, gammaln
 
-from .distribution import Distribution, statistic, s, assert_constant
+from .distribution import Distribution, statistic, s, assert_constant, is_dependent
 
 
 class BetaDistribution(Distribution):
@@ -44,8 +44,8 @@ class BetaDistribution(Distribution):
     @staticmethod
     def canonical_parameters(natural_parameters):
         return {
-            'a': natural_parameters['log'] + 1,
-            'b': natural_parameters['log1m'] + 1
+            'a': natural_parameters.pop('log') + 1,
+            'b': natural_parameters.pop('log1m') + 1
         }
 
     def log_proba(self, x):
@@ -53,12 +53,12 @@ class BetaDistribution(Distribution):
             (self._a - 1) * s(x, 'log') + (self._b - 1) * s(x, 'log1m')
 
     def natural_parameters(self, x, variable):
-        if variable == 'x':
+        if is_dependent(x, variable):
             return {
                 'log': self._a - 1,
                 'log1m': self._b - 1,
             }
-        elif variable in ('a', 'b'):
-            raise NotImplementedError(variable)
-        else:
-            raise KeyError(variable)
+        elif is_dependent(self._a, variable):
+            raise NotImplementedError('a')
+        elif is_dependent(self._b, variable):
+            raise NotImplementedError('b')

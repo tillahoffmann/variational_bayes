@@ -1,5 +1,5 @@
 import numpy as np
-from .distribution import Distribution, ChildDistribution, s, statistic
+from .distribution import Distribution, s, is_dependent
 from ..util import pad_dims, sum_trailing_dims, softmax
 
 
@@ -28,23 +28,30 @@ class MixtureDistribution(Distribution):  # pylint: disable=W0223
         return np.sum(s(self._z, 1) * log_proba, axis=-1)
 
     def natural_parameters(self, x, variable):
-        if variable == 'z':
+        if is_dependent(self._z, variable):
             # Evaluate the log probability of the observations under the individual distributions
             return {
                 'mean': self._parent.log_proba(x)
             }
+
+        # Get the natural parameters of the parent distribution
+        natural_parameters = self._parent.natural_parameters(x, variable)
+        if natural_parameters is None:
+            return None
+
+        z = s(self._z, 1)
+
+        if is_dependent(x, variable):
+            # Sum over the axis corresponding to different components
+            axis = 1
         else:
-            # Get the natural parameters of the parent distribution and compute the
-            # indicator-weighted mean
-            natural_parameters = self._parent.natural_parameters(x, variable)
-            z = s(self._z, 1)
             # We sum over the leading dimensions of the indicator but the last (which corresponds to
             # different components of the mixture)
             axis = tuple(range(z.ndim - 1))
-            for key, value in natural_parameters.items():
-                # Aggregate the parameters. The indicators need to be padded
-                natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
-            return natural_parameters
+        for key, value in natural_parameters.items():
+            # Aggregate the parameters. The indicators need to be padded
+            natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
+        return natural_parameters
 
     def assert_valid_parameters(self):
         z = s(self._z, 1)
@@ -70,18 +77,27 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
         return np.sum(log_proba * pad_dims(zz, log_proba.ndim), axis=(0, 1))
 
     def natural_parameters(self, x, variable):
-        if variable == 'z':
+        if is_dependent(self._z, variable):
             raise NotImplementedError
+
+        # Get the natural parameters from the parent distribution which should have shape
+        # `(n, n, k, k, ...)` where `...` denotes any sample dimensions
+        natural_parameters = self._parent.natural_parameters(x, variable)
+        if natural_parameters is None:
+            return None
+
+        zz = s(self.z, 'interaction')
+        if is_dependent(x, variable):
+            # Aggregate over the indicators
+            axis = (2, 3)
         else:
-            # Get the natural parameters from the parent distribution which should have shape
-            # `(n, n, k, k, ...)` where `...` denotes any sample dimensions
-            natural_parameters = self._parent.natural_parameters(x, variable)
-            zz = s(self.z, 'interaction')
-            # Aggregate over the two leading dimensions
-            for key, value in natural_parameters.items():
-                # Aggregate the parameters. The indicators need to be padded.
-                natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, (0, 1))
-            return natural_parameters
+            # Aggregate over the observatios
+            axis = (0, 1)
+
+        for key, value in natural_parameters.items():
+            # Aggregate the parameters. The indicators need to be padded.
+            natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, axis)
+        return natural_parameters
 
     def natural_parameters_z(self, x, natural_parameters):
         r"""
@@ -112,7 +128,7 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
             natural parameters for the component indicators
         """
         # Start with the initial probabilities
-        proba = s(self.z, 1)
+        proba = np.copy(s(self.z, 1))
         assert proba.ndim == 2, "indicator must be two-dimensional"
         n, k = proba.shape
 
@@ -130,19 +146,22 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
         likelihood = sum_trailing_dims(likelihood, 4)
 
         # Iterate over the observations
-        for i in range(n):
+        for i in np.random.permutation(n):
             # Initialize the natural parameters for this observation
             _np = natural_parameters[i]
             # Add the diagonal term
             _np += np.diag(likelihood[i, i])
-            # Add the interaction terms
+            # Add the interaction terms (but set the proba associated with i to zero everywhere
+            # first to avoid double counting)
+            proba[i] = 0
             _np += np.einsum('jl,jkl', proba, likelihood[i])
-            # Subtract the term that we have erroneously added above, i.e.
-            # \E{z_{il}} \E{\log P(x_{ii}|theta_{kl})}
-            _np -= np.einsum('l,kl', proba[i], likelihood[i, i])
             # Set the probability of the observations
             proba[i] = softmax(_np)
 
-        return {
+        # Ignore divide by zero errors when one of the probabilities is zero
+        old_settings = np.seterr(divide='ignore')
+        natural_parameters = {
             'mean': np.log(proba)
         }
+        np.seterr(**old_settings)
+        return natural_parameters

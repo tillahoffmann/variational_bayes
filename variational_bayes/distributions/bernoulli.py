@@ -2,7 +2,7 @@ import operator
 import numpy as np
 from scipy.special import expit
 
-from .distribution import Distribution, statistic, s
+from .distribution import Distribution, statistic, s, is_dependent
 from ..util import safe_log
 
 
@@ -34,22 +34,20 @@ class BernoulliDistribution(Distribution):
     @staticmethod
     def canonical_parameters(natural_parameters):
         return {
-            'proba': expit(natural_parameters['mean'])
+            'proba': expit(natural_parameters.pop('mean'))
         }
 
     def log_proba(self, x):
         return s(x, 1) * s(self._proba, 'log') + (1 - s(x, 1)) * s(self._proba, 'log1m')
 
     def natural_parameters(self, x, variable):
-        if variable == 'x':
+        if is_dependent(x, variable):
             return {
                 'mean': s(self._proba, 'log') - s(self._proba, 'log1m')
             }
-        elif variable == 'proba':
+        elif is_dependent(self._proba, variable):
             ones = np.ones(np.broadcast(s(x, 1), s(self._proba, 1)).shape)
             return {
                 'log': s(x, 1) * ones,
                 'log1m': 1 - s(x, 1) * ones
             }
-        else:
-            raise KeyError(variable)

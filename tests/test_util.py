@@ -19,3 +19,9 @@ def test_pack_unpack_diag_roundtrip(num_blocks, block_size, offset):
     packed = vb.pack_block_diag(blocks, offset)
     unpacked = vb.unpack_block_diag(packed, block_size, offset)
     np.testing.assert_allclose(blocks, unpacked)
+
+
+def test_onehot():
+    z = np.random.randint(0, 5, 100)
+    onehot = vb.onehot(z, 5)
+    np.testing.assert_equal(np.argmax(onehot, 1), z)

@@ -44,3 +44,15 @@ def plot_comparison(distribution, reference, scale=3, diagonal=True, aspect=None
         ax.plot(xy, xy, ls=':')
     return ax.errorbar(reference.ravel(), distribution.mean.ravel(), distribution.std.ravel() *
                        scale, **default_kwargs)
+
+
+def plot_residuals(distribution, reference, scale=3, zeroline=True, ax=None, **kwargs):
+    default_kwargs = {
+        'ls': 'none',
+    }
+    default_kwargs.update(kwargs)
+    ax = ax or plt.gca()
+    if zeroline:
+        ax.axhline(0, ls=':')
+    return ax.errorbar(reference.ravel(), distribution.mean.ravel() - reference.ravel(),
+                       distribution.std.ravel() * scale, **default_kwargs)

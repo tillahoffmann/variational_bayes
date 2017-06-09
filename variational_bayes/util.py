@@ -48,9 +48,11 @@ def sum_trailing_dims(x, ndim):
 
 def pad_dims(x, ndim):
     """
-    Pad `x` with dimensions of size one to ensure it has the desired `ndim`.
+    Pad `x` with dimensions of size one on the right to ensure it has the desired `ndim`.
     """
     shape = np.shape(x)
+    if ndim <= len(shape):
+        return x
     return np.reshape(x, shape + (1, ) * (ndim - len(shape)))
 
 
@@ -90,3 +92,13 @@ def assert_broadcastable(*x):
 def array_repr(a):
     a = np.asarray(a)
     return "array(%s, %s)" % (a.shape, a.dtype)
+
+
+def onehot(z, minlength=None):
+    """
+    Encode indices as one-hot.
+    """
+    minlength = max(np.max(z), minlength or 0)
+    onehot = np.zeros((len(z), minlength))
+    onehot[np.arange(len(z)), z] = 1
+    return onehot

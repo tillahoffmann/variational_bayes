@@ -136,7 +136,7 @@ def test_log_proba(distribution, scipy_distribution):
 def test_natural_parameters_roundtrip(distribution):
     # Get the natural parameters
     likelihood = distribution.likelihood(distribution)
-    natural_parameters = likelihood.natural_parameters('x')
+    natural_parameters = likelihood.natural_parameters(distribution)
 
     # Check the exact shape
     for key, value in natural_parameters.items():
@@ -156,7 +156,7 @@ def test_natural_parameters_roundtrip(distribution):
 
 def test_natural_parameters(distribution):
     likelihood = distribution.likelihood(distribution)
-    for variable in list(distribution.parameters):
+    for variable in list(distribution.parameters.values()):
         try:
             natural_parameters = likelihood.natural_parameters(variable)
 
@@ -176,7 +176,7 @@ def test_natural_parameters(distribution):
 def test_aggregate_natural_parameters(distribution, extra_dims):
     likelihood = distribution.likelihood(distribution)
     # Get the natural parameters
-    natural_parameters = likelihood.natural_parameters('x')
+    natural_parameters = likelihood.natural_parameters(distribution)
     # Add extra dimensions to the natural parameters
     x = {key : np.reshape(value, (1,) * extra_dims + value.shape)
          for key, value in natural_parameters.items()}
@@ -185,3 +185,27 @@ def test_aggregate_natural_parameters(distribution, extra_dims):
 
     for key, value in natural_parameters.items():
         np.testing.assert_allclose(actual[key], value, err_msg='failed to aggregate %s' % key)
+
+
+def test_reshape():
+    # Generate data
+    x = np.random.normal(0, 1, (100, 5, 5))
+    # Define factors and likelihood (using reshape)
+    q = vb.NormalDistribution(np.random.normal(0, 1, 25), np.random.gamma(1, 1, 25))
+    newshape = (5, 5)
+    reshaped = vb.ReshapedDistribution(q, newshape)
+
+    # Check the statistics
+    for statistic in q.statistics:
+        actual = vb.s(reshaped, statistic)
+        desired = vb.s(q, statistic).reshape(newshape)
+        np.testing.assert_allclose(actual, desired)
+
+    # Check the natural parameters
+    likelihood = vb.NormalDistribution(reshaped, 1).likelihood(x)
+    natural_parameters = likelihood.natural_parameters(q)
+    natural_parameters = q.aggregate_natural_parameters([natural_parameters])
+    np.testing.assert_allclose(natural_parameters['mean'], np.sum(x, axis=0).ravel(),
+                               err_msg="'mean' natural parameter does not match")
+    np.testing.assert_allclose(natural_parameters['square'], - 0.5 * 100,
+                               err_msg="'square' natural parameter does not match")
