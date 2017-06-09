@@ -51,7 +51,10 @@ class ReshapedDistribution(DerivedDistribution):
         if is_dependent(self._parent, distribution):
             for key, value in natural_parameters.items():
                 shape = s(self._parent, key).shape
-                natural_parameters[key] = value.reshape(shape)
+                if np.prod(shape) == value.size:
+                    natural_parameters[key] = value.reshape(shape)
+                else:
+                    natural_parameters[key] = value.reshape((-1, ) + shape)
             return natural_parameters
         else:
             raise KeyError
