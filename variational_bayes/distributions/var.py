@@ -1,7 +1,8 @@
 import numpy as np
 
-from .distribution import Distribution, Likelihood, assert_constant, s, ChildDistribution, statistic
-from ..util import unpack_block_diag, pack_block_diag, diag
+from .distribution import Distribution, Likelihood, assert_constant, s, DerivedDistribution, \
+    statistic, is_dependent
+from ..util import unpack_block_diag, pack_block_diag, diag, pad_dims
 
 
 def shift(x, p):
@@ -102,6 +103,8 @@ def pack_coefficient_var(adjacency_var, bias_var, shape=None):
     if shape is None:
         n, _n, p, _p = np.shape(adjacency_var)
         shape = (n, n * p + 1, n * p + 1)
+    else:
+        shape = shape + (shape[1], )
 
     var = np.zeros(shape)
 
@@ -140,112 +143,107 @@ def unpack_coefficient_var(var):
     return unpack_adjacency_var(var), unpack_bias_var(var)
 
 
-def _evaluate_statistics(x, order):
-    # Assert that we have constant observations
-    assert_constant(x)
-    assert x.ndim == 2, "observations must be two-dimensional"
-    num_steps, num_nodes = x.shape
-    # Evaluate the features, flatten along the last dimension to get shape (t, n * p)
-    shape = (num_steps, num_nodes * order)
-    features = evaluate_features(x, order).reshape(shape)
-    # Prepend a bias feature
-    features = np.hstack([np.ones((num_steps, 1)), features])
-    # Precompute the square of the observations ...
-    x2 = np.sum(np.square(x), axis=0)
-    # ... the product of the observations and features ...
-    xfeatures = np.einsum('ti,ta->ia', x, features)
-    # ... and the square of the features
-    features2 = np.einsum('ta,tb->ab', features, features)
-
-    return x2, xfeatures, features2
-
-
 class VARDistribution(Distribution):
-    def __init__(self, coefficients, noise_precision):
-        super(VARDistribution, self).__init__(
-            coefficients=coefficients, noise_precision=noise_precision
-        )
-        # Establish the order of the process
-        self.num_nodes, a = s(self.coefficients, 1).shape
-        self.order = (a - 1) // self.num_nodes
-
-    def likelihood(self, x):
-        return VARLikelihood(self, x)
-
-    def log_proba(self, x, statistics=None):  # pylint: disable=W0221
-        num_steps = x.shape[0]
-        x2, xfeatures, features2 = statistics or _evaluate_statistics(x, self.order)
-        chi2 = x2 - 2 * np.sum(s(self._coefficients, 1) * xfeatures, axis=1) + \
-            np.sum(s(self._coefficients, 'outer') * features2, axis=(1, 2))
-
-        return 0.5 * ((s(self._noise_precision, 'log') - np.log(2 * np.pi)) * num_steps -
-                      s(self._noise_precision, 1) * chi2)
-
-    def natural_parameters(self, x, variable, statistics=None):  # pylint: disable=W0221
-        num_steps, num_nodes = x.shape
-        x2, xfeatures, features2 = statistics or _evaluate_statistics(x, self.order)
-        if variable == 'x':
-            raise NotImplementedError
-        elif variable == 'coefficients':
-            return {
-                'mean': s(self.noise_precision, 1)[:, None] * xfeatures,
-                'outer': - 0.5 * s(self.noise_precision, 1)[:, None, None] * features2,
-            }
-        elif variable == 'noise_precision':
-            return {
-                'log': 0.5 * num_steps * np.ones(num_nodes),
-                'mean': -0.5 * (x2 - 2 * np.sum(xfeatures * s(self._coefficients, 1), axis=1) +
-                                np.sum(features2 * s(self._coefficients, 'outer'), axis=(1, 2)))
-            }
-        else:
-            raise KeyError(variable)
+    def __init__(self, z, coefficients, noise_precision):
+        super(VARDistribution, self).__init__(z=z, coefficients=coefficients, noise_precision=noise_precision)
 
     def assert_valid_parameters(self):
+        noise_precision = s(self._noise_precision, 1)
+        assert np.ndim(noise_precision) == 1
         coefficients = s(self._coefficients, 1)
-        assert coefficients.ndim == 2, "coefficients must be a matrix"
+        assert np.ndim(coefficients) == 2
+        n, a = coefficients.shape
+        assert (a - 1) % n == 0
+        z = s(self._z, 1)
+        assert z.shape[0] == n
+
+    @staticmethod
+    def summary_statistics(x, order):
+        # Assert that we have constant observations
+        assert_constant(x)
+        assert x.ndim == 2, "observations must be two-dimensional"
+        num_steps, num_nodes = x.shape
+        # Evaluate the features, flatten along the last dimension to get shape (t, n * p)
+        shape = (num_steps, num_nodes * order)
+        features = evaluate_features(x, order).reshape(shape)
+        # Prepend a bias feature
+        features = np.hstack([np.ones((num_steps, 1)), features])
+        # Drop the first `order` features and observations because the zero-padding can lead to oddities
+        features = features[order:]
+        x = x[order:]
+        # Precompute the square of the observations ...
+        x2 = np.sum(np.square(x), axis=0)
+        # ... the product of the observations and features ...
+        xfeatures = np.einsum('ti,ta->ia', x, features)
+        # ... and the square of the features
+        features2 = np.einsum('ta,tb->ab', features, features)
+
+        return x2, xfeatures, features2, num_steps
+
+    def natural_parameters(self, x, variable):
+        # Extract the summary statistics
+        x2, xfeatures, features2, num_steps = x
+
+        if is_dependent(self._coefficients, variable):
+            # Compute the noise-precision per node
+            noise_precision = np.dot(s(self._z, 1), s(self._noise_precision, 1))
+            return {
+                # This has shape (n, a)
+                'mean': xfeatures * noise_precision[:, None],
+                # This has shape (n, a, a)
+                'outer': - 0.5 * pad_dims(noise_precision, 3) * features2,
+            }
+
+        residuals2 = x2 - 2 * np.sum(xfeatures * s(self._coefficients, 1), axis=1) + \
+            np.sum(features2 * s(self._coefficients, 'outer'), axis=(1, 2))
+
+        if is_dependent(self._z, variable):
+            return {
+                'mean': 0.5 * (s(self._noise_precision, 'log') - np.log(2 * np.pi)) * num_steps - \
+                    0.5 * residuals2[:, None] * s(self._noise_precision, 1)
+            }
+
+        elif is_dependent(self._noise_precision, variable):
+            return {
+                'log': 0.5 * np.sum(s(self._z, 1), axis=0) * num_steps,
+                'mean': -0.5 * np.sum(s(self._z, 1) * residuals2[:, None], axis=0)
+            }
+
+    def log_proba(self, x):
+        return s(self._z, 1) * self.natural_parameters(x, self._z)['mean']
 
 
-class VARLikelihood(Likelihood):
-    def __init__(self, distribution, x):
-        super(VARLikelihood, self).__init__(distribution, x)
-        self.statistics = _evaluate_statistics(self.x, self.distribution.order)
-
-    def evaluate(self):
-        return self.distribution.log_proba(self.x, self.statistics)
-
-    def natural_parameters(self, variable):
-        return self.distribution.natural_parameters(self.x, variable, self.statistics)
-
-
-class VARBiasDistribution(ChildDistribution):
+class VARBiasDistribution(DerivedDistribution):
     """
     Child distribution representing the shape `(n, )` bias of each series.
     """
     def __init__(self, coefficients):
         super(VARBiasDistribution, self).__init__(coefficients)
+        self._parent = coefficients
 
     @statistic
     def mean(self):
-        return unpack_bias(s(self.coefficients, 1))
+        return unpack_bias(s(self._parent, 1))
 
     @statistic
     def var(self):
-        return unpack_bias_var(s(self.coefficients, 'var'))
+        return unpack_bias_var(s(self._parent, 'cov'))
 
-    def transform_natural_parameters(self, natural_parameters):
-        shape = s(self.coefficients, 1).shape
+    def transform_natural_parameters(self, distribution, natural_parameters):
+        shape = s(self._parent, 1).shape
         return {
             'mean': pack_coefficients(None, natural_parameters['mean'], shape),
             'outer': pack_coefficient_var(None, natural_parameters['square'], shape)
         }
 
 
-class VARAdjacencyDistribution(ChildDistribution):
+class VARAdjacencyDistribution(DerivedDistribution):
     """
     Child distribution representing the shape `(n, n, p)` adjacency of each series.
     """
     def __init__(self, coefficients):
         super(VARAdjacencyDistribution, self).__init__(coefficients)
+        self._parent = coefficients
 
     @statistic
     def mean(self):
@@ -256,10 +254,14 @@ class VARAdjacencyDistribution(ChildDistribution):
         return unpack_adjacency_var(s(self._parent, 'cov'))
 
     @statistic
+    def outer(self):
+        return self.mean[..., None, :] * self.mean[..., :, None] + self.cov
+
+    @statistic
     def var(self):
         return diag(self.cov)
 
-    def transform_natural_parameters(self, natural_parameters):
+    def transform_natural_parameters(self, distribution, natural_parameters):
         return {
             'mean': pack_coefficients(natural_parameters['mean'], None),
             'outer': pack_coefficient_var(natural_parameters['outer'], None)

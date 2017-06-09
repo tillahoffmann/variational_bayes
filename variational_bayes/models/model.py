@@ -1,7 +1,7 @@
 import numbers
 import numpy as np
 
-from ..distributions import Distribution, ChildDistribution
+from ..distributions import Distribution, DerivedDistribution
 
 
 def evaluate_natural_parameters(factor, likelihoods, exclude=None):
@@ -13,11 +13,9 @@ def evaluate_natural_parameters(factor, likelihoods, exclude=None):
     for likelihood in likelihoods:
         if exclude and likelihood in exclude:
             continue
-        # Check if this factor is part of the likelihood
-        parameter = likelihood.parameter_name(factor)
-        if parameter:
-            # Get the natural parameters
-            natural_parameters = likelihood.natural_parameters(parameter)
+        # Get the natural parameters
+        natural_parameters = likelihood.natural_parameters(factor)
+        if natural_parameters:
             args.append(natural_parameters)
     return args
 
@@ -54,21 +52,23 @@ class Model:
         # Run over all the likelihoods, extract the 'x' parameter and ensure the factors all have
         # a prior
         lookup = {v: k for k, v in factors.items()}
-        priors = {k: [] for k in factors.values()}
+        priors = {}
 
         for likelihood in self._likelihoods:
             x = likelihood.x
             if isinstance(x, Distribution):
+                if x not in priors:
+                    priors[x] = []
                 priors[x].append(likelihood)
 
-        # Run over the priors and ensure they all have exactly one prior
+        # Run over the factors and ensure they all have exactly one prior
         for factor, p in priors.items():
             assert p, "%s does not have a prior" % lookup[factor]
             assert len(p) < 2, "%s has more than one prior: %s" % (lookup[factor], p)
 
         # Ensure only real distributions are added as factors and no child distributions
         for key, value in self._factors.items():
-            assert not isinstance(value, ChildDistribution), "%s is a ChildDistribution" % key
+            assert not isinstance(value, DerivedDistribution), "%s is a ChildDistribution" % key
 
     def __getitem__(self, name):
         return self._factors[name]
@@ -153,7 +153,11 @@ class Model:
     @property
     def joint(self):
         """float : expected joint distribution"""
-        return np.sum([np.sum(likelihood.evaluate()) for likelihood in self._likelihoods])
+        return np.sum(self.joint_terms)
+
+    @property
+    def joint_terms(self):
+        return [np.sum(likelihood.evaluate()) for likelihood in self._likelihoods]
 
     @property
     def entropies(self):

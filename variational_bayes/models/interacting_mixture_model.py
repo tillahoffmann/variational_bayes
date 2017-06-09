@@ -1,5 +1,5 @@
 from .model import Model
-from ..distributions import InteractingMixtureDistribution
+from ..distributions import InteractingMixtureDistribution, Distribution
 
 
 class InteractingMixtureModel(Model):
@@ -14,7 +14,12 @@ class InteractingMixtureModel(Model):
                     "mixture likelihood"
                 self._interacting_likelihood = likelihood
                 self._indicators = likelihood.distribution.z
-                assert self._indicators in self._factors.values(), "indicators are not part of model"
+                if isinstance(self._indicators, Distribution):
+                    assert self._indicators in self._factors.values(), \
+                        "indicators are not part of model"
+                else:
+                    # Ignore the indicators if they are fixed
+                    self._indicators = None
 
     def aggregate_natural_parameters(self, factor, exclude=None):
         if isinstance(factor, str):
