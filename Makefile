@@ -16,6 +16,7 @@ $(SCRIPTS) : %.py : %.ipynb
 
 clean :
 	rm examples/*.html
+	rm exmaples/*.py
 
 tests :
 	py.test -v --cov variational_bayes --cov-report html -rsx
