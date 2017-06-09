@@ -4,10 +4,16 @@ import variational_bayes as vb
 import numpy as np
 
 
-@pytest.mark.parametrize('num_nodes, order', it.product(
-    [37, 13],
-    [1, 2, 3],
-))
+@pytest.fixture(params=[37, 13])
+def num_nodes(request):
+    return request.param
+
+
+@pytest.fixture(params=[1, 2, 3])
+def order(request):
+    return request.param
+
+
 def test_pack_unpack_coefficients_roundtrip(num_nodes, order):
     adjacency = np.random.normal(0, 1, (num_nodes, num_nodes, order))
     bias = np.random.normal(0, 1, num_nodes)
@@ -17,10 +23,6 @@ def test_pack_unpack_coefficients_roundtrip(num_nodes, order):
     np.testing.assert_allclose(unpacked_bias, bias)
 
 
-@pytest.mark.parametrize('num_nodes, order', it.product(
-    [37, 13],
-    [1, 2, 3],
-))
 def test_pack_unpack_coefficient_var_roundtrip(num_nodes, order):
     adjacency_var = np.random.normal(0, 1, (num_nodes, num_nodes, order, order))
     bias_var = np.random.normal(0, 1, num_nodes)
@@ -33,3 +35,40 @@ def test_pack_unpack_coefficient_var_roundtrip(num_nodes, order):
 
     # Check that most of the matrix is zero
     assert np.sum(packed == 0) == packed.size - adjacency_var.size - bias_var.size
+
+
+@pytest.fixture
+def coefficients(num_nodes, order):
+    return vb.MultiNormalDistribution(
+        np.random.normal(0, 1, (num_nodes, num_nodes * order + 1)),
+        np.ones((num_nodes, 1, 1)) * np.eye(num_nodes * order + 1)
+    )
+
+
+def test_var_bias_distribution(coefficients, num_nodes):
+    dist = vb.VARBiasDistribution(coefficients)
+    np.testing.assert_allclose(dist.mean, coefficients.mean[..., 0])
+
+    _ = dist.transform_natural_parameters(dist, {
+        'mean': np.random.normal(0, 1, num_nodes),
+        'square': np.random.gamma(1, 1, num_nodes)
+    })
+
+
+def test_var_adjacency_distribution(coefficients, num_nodes, order):
+    dist = vb.VARAdjacencyDistribution(coefficients)
+    shape = (num_nodes, num_nodes, order)
+    np.testing.assert_allclose(dist.mean, coefficients.mean[..., 1:].reshape(shape))
+
+    _ = dist.transform_natural_parameters(dist, {
+        'mean': np.random.normal(0, 1, (num_nodes, num_nodes, order)),
+        'outer': np.random.gamma(1, 1, (num_nodes, num_nodes, order, order))
+    })
+
+
+@pytest.mark.parametrize('num_groups', [1, 2, 3])
+def test_var_model(num_nodes, order, num_groups):
+    x = np.random.normal(0, 1, (1000, num_nodes))
+    model = vb.var_model(x, order, num_groups)
+    elbos, _ = model.update(1)
+    assert elbos[1] > elbos[0]
