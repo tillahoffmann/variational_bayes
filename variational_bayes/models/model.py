@@ -205,7 +205,7 @@ class ModelEnsemble:
         assert self.keep_models, "set `keep_models` to `True` to store models"
         return self._models
 
-    def update(self, num_models, steps, tqdm=None, order=None, convergence_predicate=None):
+    def update(self, num_models, steps, tqdm=None, update_order=None, convergence_predicate=None):
         """
         Update models in the ensemble.
 
@@ -217,7 +217,7 @@ class ModelEnsemble:
             see `Model.update`.
         tqdm : callable
             progress indicator.
-        order : list[str]
+        update_order : list[str]
             see `Model.update`.
         convergence_predicate : float or callable
             see `Model.update`.
@@ -231,7 +231,7 @@ class ModelEnsemble:
             model = self.model_init(*self.model_args)
             # Optimise the model
             elbos, converged = model.update(
-                steps, order=order, convergence_predicate=convergence_predicate
+                steps, update_order=update_order, convergence_predicate=convergence_predicate
             )
             # Update the state
             elbo = elbos[-1]
