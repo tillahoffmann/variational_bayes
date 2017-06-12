@@ -24,8 +24,10 @@ class MixtureDistribution(Distribution):  # pylint: disable=W0223
         # expected shape `(n, k)`, where `n` is the number of observations and `k` is the number
         # of groups
         log_proba = self._parent.log_proba(x)
+        z = s(self._z, 1)
+        assert z.shape == log_proba.shape
         # Contract with the expected indicators of shape `(n, k)`
-        return np.sum(s(self._z, 1) * log_proba, axis=-1)
+        return np.sum(z * log_proba, axis=-1)
 
     def natural_parameters(self, x, variable):
         if is_dependent(self._z, variable):
@@ -49,6 +51,7 @@ class MixtureDistribution(Distribution):  # pylint: disable=W0223
             # different components of the mixture)
             axis = tuple(range(z.ndim - 1))
         for key, value in natural_parameters.items():
+            assert z.shape == value.shape[:2]
             # Aggregate the parameters. The indicators need to be padded
             natural_parameters[key] = np.sum(pad_dims(z, value.ndim) * value, axis)
         return natural_parameters
@@ -74,7 +77,8 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
         log_proba = self._parent.log_proba(x)
         # Sum over the trailing dimensions weighted by the interaction
         zz = s(self.z, 'interaction')
-        return np.sum(log_proba * pad_dims(zz, log_proba.ndim), axis=(0, 1))
+        assert zz.shape == log_proba.shape
+        return np.sum(log_proba * zz, axis=(2, 3))
 
     def natural_parameters(self, x, variable):
         if is_dependent(self._z, variable):
@@ -87,14 +91,16 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
             return None
 
         zz = s(self.z, 'interaction')
+
         if is_dependent(x, variable):
-            # Aggregate over the indicators
+            # Aggregate over the indicators to give us natural parameters for the observations
             axis = (2, 3)
         else:
-            # Aggregate over the observatios
+            # Aggregate over the observations to give us natural parameters for the mixture
             axis = (0, 1)
 
         for key, value in natural_parameters.items():
+            assert zz.shape == value.shape[:4]
             # Aggregate the parameters. The indicators need to be padded.
             natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, axis)
         return natural_parameters
