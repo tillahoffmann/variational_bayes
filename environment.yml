@@ -13,6 +13,7 @@ dependencies:
   - pylint
   - requests
   - cython
+  - networkx
   - pip:
     - tqdm
     - mechanicalsoup
