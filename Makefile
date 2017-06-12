@@ -15,8 +15,8 @@ $(SCRIPTS) : %.py : %.ipynb
 	jupyter nbconvert --to python $<
 
 clean :
-	rm examples/*.html
-	rm exmaples/*.py
+	rm -f examples/*.html
+	rm -f exmaples/*.py
 
 tests :
 	py.test -v --cov variational_bayes --cov-report html -rsx
