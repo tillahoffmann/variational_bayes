@@ -2,7 +2,7 @@ import operator
 import numpy as np
 
 from .distribution import Distribution, statistic, s, is_dependent
-from ..util import softmax
+from ..util import softmax, safe_log
 
 
 class CategoricalDistribution(Distribution):
@@ -49,8 +49,7 @@ class CategoricalDistribution(Distribution):
 
     @statistic
     def entropy(self):
-        summands = np.log(np.where(self._proba > 0, self._proba, 1.0))
-        return - np.sum(self._proba * summands, axis=-1)
+        return - np.sum(self._proba * safe_log(self._proba), axis=-1)
 
     @staticmethod
     def canonical_parameters(natural_parameters):
