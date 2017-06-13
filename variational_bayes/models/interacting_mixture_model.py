@@ -21,7 +21,7 @@ class InteractingMixtureModel(Model):
                     # Ignore the indicators if they are fixed
                     self._indicators = None
 
-    def aggregate_natural_parameters(self, factor, exclude=None):
+    def aggregate_natural_parameters(self, factor, exclude=None, nodes=None):  # pylint:disable=W0221
         if isinstance(factor, str):
             factor = self._factors[factor]
 
@@ -35,7 +35,7 @@ class InteractingMixtureModel(Model):
             )
             # Get the natural parameters after one sequence of interacting mixture model updates
             return self._interacting_likelihood.distribution.natural_parameters_z(
-                self._interacting_likelihood.x, natural_parameters
+                self._interacting_likelihood.x, natural_parameters, nodes
             )
         else:
             return super(InteractingMixtureModel, self).aggregate_natural_parameters(

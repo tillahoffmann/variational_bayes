@@ -1,7 +1,11 @@
 import numbers
+import logging
 import numpy as np
 
 from ..distributions import Distribution, DerivedDistribution
+
+
+logger = logging.getLogger(__name__)
 
 
 def evaluate_natural_parameters(factor, likelihoods, exclude=None):
@@ -36,9 +40,9 @@ class ConvergencePredicate:
         self.num_steps = num_steps
 
     def __call__(self, elbos):
-        if len(elbos) < self.num_steps:
+        if len(elbos) < self.num_steps + 1:
             return False
-        return elbos[-1] - elbos[-self.num_steps] < self.threshold
+        return elbos[-1] - elbos[-(self.num_steps + 1)] < self.threshold
 
 
 class Model:
@@ -74,7 +78,7 @@ class Model:
     def __getitem__(self, name):
         return self._factors[name]
 
-    def update(self, steps, tqdm=None, update_order=None, convergence_predicate=None):
+    def update(self, steps, tqdm=None, update_order=None, convergence_predicate=None, **kwargs):
         """
         Update the factors of the approximate posterior.
 
@@ -117,9 +121,15 @@ class Model:
         for _ in steps:
             # Update each factor
             for factor in update_order:
-                self.update_factor(factor)
+                self.update_factor(factor, **kwargs)
 
             elbo.append(self.elbo)
+
+            improvement = elbo[-1] - elbo[-2]
+            if improvement < - 100 * np.finfo(np.float32).eps:
+                logger.warning("ELBO decreased by %g from %g to %g", - improvement, elbo[-2],
+                               elbo[-1])
+
             if convergence_predicate and convergence_predicate(elbo):
                 break
 
@@ -134,22 +144,23 @@ class Model:
             factor = self._factors[factor]
         return evaluate_natural_parameters(factor, self._likelihoods, exclude)
 
-    def aggregate_natural_parameters(self, factor, exclude=None):
+    def aggregate_natural_parameters(self, factor, exclude=None, **kwargs):
         if isinstance(factor, str):
             factor = self._factors[factor]
-        return aggregate_natural_parameters(factor, self._likelihoods, exclude)
+        return aggregate_natural_parameters(factor, self._likelihoods, exclude, **kwargs)
 
-    def update_factor(self, factor):
+    def update_factor(self, factor, **kwargs):
         """
         Update the given factor.
         """
         if isinstance(factor, str):
             factor = self._factors[factor]
         # Construct the sequence of natural parameters used to update this factor
-        natural_parameters = self.aggregate_natural_parameters(factor)
+        natural_parameters = self.aggregate_natural_parameters(factor, **kwargs)
         assert natural_parameters, "failed to update %s because natural parameters are " \
             "missing" % factor
         factor.update_from_natural_parameters(natural_parameters)
+        return factor
 
     @property
     def joint(self):
