@@ -1,4 +1,4 @@
-import functools as ft
+import pickle
 import numpy as np
 import scipy.stats
 import pytest
@@ -240,3 +240,8 @@ def test_reshape():
                                err_msg="'mean' natural parameter does not match")
     np.testing.assert_allclose(natural_parameters['square'], - 0.5 * 100,
                                err_msg="'square' natural parameter does not match")
+
+
+def test_pickle(distribution):
+    reconstructed = pickle.loads(pickle.dumps(distribution))
+    np.testing.assert_allclose(distribution.mean, reconstructed.mean)
