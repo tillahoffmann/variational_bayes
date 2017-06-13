@@ -2,3 +2,4 @@
 from .model import *
 from .interacting_mixture_model import *
 from .var import *
+from .ensemble import *

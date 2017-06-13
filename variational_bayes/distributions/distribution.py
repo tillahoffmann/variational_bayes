@@ -76,7 +76,7 @@ class Distribution:
         self.update(canonical_parameters)
 
     def __getattr__(self, name):
-        if name.strip('_') in self.parameters:
+        if 'parameters' in self.__dict__ and name.strip('_') in self.parameters:
             return self.parameters[name.strip('_')]
         else:
             raise AttributeError(name)
