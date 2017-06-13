@@ -98,7 +98,7 @@ def onehot(z, minlength=None):
     """
     Encode indices as one-hot.
     """
-    minlength = max(np.max(z), minlength or 0)
+    minlength = max(np.max(z) + 1, minlength or 0)
     onehot = np.zeros((len(z), minlength))
     onehot[np.arange(len(z)), z] = 1
     return onehot
