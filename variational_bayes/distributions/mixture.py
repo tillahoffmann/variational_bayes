@@ -105,7 +105,7 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
             natural_parameters[key] = np.sum(pad_dims(zz, value.ndim) * value, axis)
         return natural_parameters
 
-    def natural_parameters_z(self, x, natural_parameters):
+    def natural_parameters_z(self, x, natural_parameters, nodes=None):
         r"""
         Obtain the natural parameters for the component indicators.
 
@@ -145,24 +145,24 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
 
         # Evaluate the likelihood
         likelihood = self._parent.log_proba(x)
-        assert likelihood.ndim >= 4, "evaluated likelihood must have at least four dimensions"
-        assert likelihood.shape[:4] == (n, n, k, k), "evaluated likelihood must have leading shape " \
-            "%s" % [(n, n, k, k)]
-        # Collapse the trailing dimensions
-        likelihood = sum_trailing_dims(likelihood, 4)
+        assert likelihood.shape == (n, n, k, k), "evaluated likelihood must have shape (n, n, k, k)"
 
+        # Create a random order of nodes
+        if nodes is None:
+            nodes = np.random.permutation(n)
         # Iterate over the observations
-        for i in np.random.permutation(n):
+        for a in nodes:
             # Initialize the natural parameters for this observation
-            _np = natural_parameters[i]
+            _np = np.copy(natural_parameters[a])
             # Add the diagonal term
-            _np += np.diag(likelihood[i, i])
+            _np += np.diag(likelihood[a, a])
             # Add the interaction terms (but set the proba associated with i to zero everywhere
             # first to avoid double counting)
-            proba[i] = 0
-            _np += np.einsum('jl,jkl', proba, likelihood[i])
+            proba[a] = 0
+            _np += np.einsum('jl,jbl', proba, likelihood[a]) + \
+                np.einsum('ik,ikb', proba, likelihood[:, a])
             # Set the probability of the observations
-            proba[i] = softmax(_np)
+            proba[a] = softmax(_np)
 
         # Ignore divide by zero errors when one of the probabilities is zero
         old_settings = np.seterr(divide='ignore')
