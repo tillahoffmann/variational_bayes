@@ -39,7 +39,7 @@ class Distribution:
                            for key, value in parameters.items()}
         self.assert_valid_parameters()
 
-    def update(self, canonical_parameters):
+    def update(self, canonical_parameters, **kwargs):
         """
         Update the distribution with the given canonical paramters.
 
@@ -47,6 +47,10 @@ class Distribution:
         """
         # Clear the statistics cache
         self._statistics.clear()
+        # Update statistics with keyword arguments
+        duplicate_keys = set(canonical_parameters) & set(kwargs)
+        assert not duplicate_keys, "duplicate keys: %s" % ", ".join(duplicate_keys)
+        canonical_parameters.update(kwargs)
         # Update the canonical parameters
         for key, value in canonical_parameters.items():
             assert key in self.parameters, "parameter %s is not part of %s" % (key, self)
