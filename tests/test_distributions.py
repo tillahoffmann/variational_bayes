@@ -46,8 +46,8 @@ def distribution(request, batch_shape):
 
 @pytest.fixture
 def scipy_distribution(batch_shape, distribution):
-    if batch_shape != tuple():
-        pytest.skip()
+    if batch_shape:
+        pytest.skip("batch_shape is not empty: %s" % [batch_shape])
     elif isinstance(distribution, vb.NormalDistribution):
         return scipy.stats.norm(distribution._mean, 1 / np.sqrt(distribution._precision))
     elif isinstance(distribution, vb.GammaDistribution):
@@ -91,12 +91,43 @@ def _scipy_statistic(dist, statistic):
         }
 
 
+def test_finite_statistics(distribution):
+    for statistic in distribution.statistics:
+        if statistic == 'interaction' and distribution._proba.ndim != 2:
+            continue
+        value = vb.evaluate_statistic(distribution, statistic)
+        assert np.all(np.isfinite(value))
+
+
+def test_interaction_statistic():
+    num_nodes = 20
+    num_groups = 3
+    q = vb.CategoricalDistribution(np.ones((num_nodes, num_groups)) / num_groups)
+    actual = q.interaction
+    # Check the shpae
+    assert actual.shape == (num_nodes, num_nodes, num_groups, num_groups)  # pylint: disable=E1101
+
+    # Simulate samples and average
+    samples = np.random.randint(0, num_groups, (1000, num_nodes))
+    samples = [vb.evaluate_statistic(vb.onehot(x, num_groups), 'interaction') for x in samples]
+    mean = np.mean(samples, axis=0)
+    std = np.std(samples, axis=0) / np.sqrt(len(samples) - 1)
+    z = (actual - mean) / std
+    # Ensure both the mean and the computed statistic are zero where the std is zero
+    assert np.all(mean[std == 0] == 0)
+    assert np.all(actual[std == 0] == 0)
+    # Remove the nans
+    z[np.isnan(z)] = 0
+    np.testing.assert_array_less(np.abs(z), 5)
+
+
 def test_compare_statistics(distribution, scipy_distribution):
     """Test that all statistics match the scipy implementation."""
     for statistic in distribution.statistics:
-        if statistic == 'interaction' and distribution._proba.ndim != 2:
-            pytest.skip("interaction statistic only defined for 1D batch")
-        actual = getattr(distribution, statistic)
+        if statistic == 'interaction':
+            continue
+        actual = vb.evaluate_statistic(distribution, statistic)
+        assert np.all(np.isfinite(actual)), "non-finite statistic"
         desired = _scipy_statistic(scipy_distribution, statistic)
         if not isinstance(desired, dict):
             np.testing.assert_allclose(actual, desired, err_msg="statistic '%s' of %s does not "
