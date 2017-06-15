@@ -25,3 +25,10 @@ def test_onehot():
     z = np.random.randint(0, 5, 100)
     onehot = vb.onehot(z, 5)
     np.testing.assert_equal(np.argmax(onehot, 1), z)
+
+
+def test_cluster_order():
+    z = np.random.randint(0, 5, 100)
+    onehot = vb.onehot(z)
+    order = np.random.permutation(5)
+    np.testing.assert_equal(vb.cluster_order(onehot[:, order], onehot), order)
