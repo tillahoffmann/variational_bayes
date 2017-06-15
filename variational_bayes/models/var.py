@@ -7,7 +7,7 @@ from ..distributions import NormalDistribution, GammaDistribution, MultiNormalDi
 from .interacting_mixture_model import InteractingMixtureModel
 
 
-def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=False):
+def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=True):
     """
     Build a hierarchical vector-autoregressive model.
 
@@ -140,4 +140,6 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Fa
 
     factors = {key: value for key, value in factors.items() if isinstance(value, Distribution)}
     model = InteractingMixtureModel(factors, likelihoods, update_order)
+    model.adjacency = q_adjacency
+    model.bias = q_bias
     return model
