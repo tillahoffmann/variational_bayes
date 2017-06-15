@@ -1,4 +1,5 @@
 from matplotlib import pyplot as plt
+from matplotlib import patches as mpatches
 import numpy as np
 
 
@@ -56,3 +57,29 @@ def plot_residuals(distribution, reference, scale=3, zeroline=True, ax=None, **k
         ax.axhline(0, ls=':')
     return ax.errorbar(reference.ravel(), distribution.mean.ravel() - reference.ravel(),
                        distribution.std.ravel() * scale, **default_kwargs)
+
+
+def ellipse_from_cov(xy, cov, scale=3, **kwargs):
+    """
+    Create an ellipse from a covariance matrix.
+
+    Parameters
+    ----------
+    xy : np.ndarray
+        position of the ellipse
+    cov : np.ndarray
+        covariance matrix
+    scale : float
+        scale of the ellipse (default is three standard deviations)
+    kwargs : dict
+        keyword arguments passed on to `matplotlib.patches.Ellipse`
+
+    Returns
+    -------
+    ellipse
+    """
+    evals, evecs = np.linalg.eigh(cov)
+    # Get the angle associated with the dominant eigenvector
+    angle = np.arctan2(*evecs[::-1, 1])
+    height, width = scale * np.sqrt(evals)
+    return mpatches.Ellipse(xy, width, height, np.rad2deg(angle), **kwargs)
