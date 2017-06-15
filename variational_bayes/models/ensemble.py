@@ -1,7 +1,11 @@
 import numbers
+import logging
 import functools as ft
 import multiprocessing
 import numpy as np
+
+
+logger = logging.getLogger(__name__)
 
 
 class ModelEnsemble:
@@ -67,7 +71,11 @@ class ModelEnsemble:
             generator = _map(partial, num_models)
             if tqdm:
                 generator = tqdm(generator, total=len(num_models))
-            for model, elbo, converged in generator:
+            for item in generator:
+                if isinstance(item, Exception):
+                    logger.warning("exception in model optimization: %s", item)
+                    continue
+                model, elbo, converged = item
                 self.elbos.append(elbo)
                 self.converged.append(converged)
                 if self.keep_models:
@@ -84,9 +92,12 @@ class ModelEnsemble:
         return self.best_model
 
     def _optimize_single_model(self, steps, update_order, convergence_predicate, *_):
-        model = self.model_init(*self.model_args)
-        # Optimise the model
-        elbos, converged = model.update(
-            steps, update_order=update_order, convergence_predicate=convergence_predicate
-        )
-        return model, elbos[-1], converged
+        try:
+            model = self.model_init(*self.model_args)
+            # Optimise the model
+            elbos, converged = model.update(
+                steps, update_order=update_order, convergence_predicate=convergence_predicate
+            )
+            return model, elbos[-1], converged
+        except Exception as ex:
+            return ex

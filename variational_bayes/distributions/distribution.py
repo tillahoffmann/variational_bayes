@@ -266,7 +266,10 @@ class DerivedDistribution(Distribution):
         try:
             return super(DerivedDistribution, self).__getattr__(name)
         except AttributeError:
-            return self._transformed_statistic(name)
+            if name.startswith('_') and not name.startswith('__'):
+                return self._transformed_statistic(name)
+            else:
+                raise
 
 
 class Likelihood:
