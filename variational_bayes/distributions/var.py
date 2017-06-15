@@ -180,6 +180,11 @@ class VARDistribution(Distribution):
 
         return x2, xfeatures, features2, num_steps
 
+    @staticmethod
+    def coefficient_mle(x, order):
+        _x2, xfeatures, features2, _num_steps = VARDistribution.summary_statistics(x, order)
+        return np.einsum('ab,ia->ib', np.linalg.inv(features2), xfeatures)
+
     def natural_parameters(self, x, variable):
         # Extract the summary statistics
         x2, xfeatures, features2, num_steps = x
