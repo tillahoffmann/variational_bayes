@@ -1,3 +1,4 @@
+import itertools as it
 import numpy as np
 import scipy.special
 from ._util import pack_block_diag, unpack_block_diag
@@ -102,3 +103,35 @@ def onehot(z, minlength=None):
     onehot = np.zeros((len(z), minlength))
     onehot[np.arange(len(z)), z] = 1
     return onehot
+
+
+def cluster_order(inferred, actual):
+    """
+    Determine the best permutation for the cluster ordering.
+
+    Parameters
+    ----------
+    inferred : np.ndarray
+        responsibility matrix
+    actual : np.ndarray
+        cluster labels or onehot encoding
+
+    Returns
+    -------
+    ordering : np.ndarray
+        best permutation of cluster labels
+    """
+    if np.ndim(actual) == 1:
+        actual = onehot(actual, inferred.shape[1])
+
+    best_ordering = None
+    best_loss = np.inf
+
+    for ordering in it.permutations(range(inferred.shape[1])):
+        # Compute the log loss for misclassification
+        loss = - np.sum(actual[:, ordering] * np.log(np.where(actual[:, ordering] == 0, 1, inferred)))
+        if loss < best_loss:
+            best_loss = loss
+            best_ordering = ordering
+
+    return list(best_ordering)
