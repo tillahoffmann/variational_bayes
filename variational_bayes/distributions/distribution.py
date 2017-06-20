@@ -183,7 +183,11 @@ class Distribution:
         """
         Create a distribution from natural parameters.
         """
-        return cls(**cls.canonical_parameters(natural_parameters))
+        canonical_parameters = {
+            key: value for key, value in cls.canonical_parameters(natural_parameters).items()
+            if not key.startswith('_')
+        }
+        return cls(**canonical_parameters)
 
     def assert_valid_parameters(self):
         """
