@@ -2,7 +2,7 @@ import numpy as np
 
 from .distribution import Distribution, Likelihood, assert_constant, s, DerivedDistribution, \
     statistic, is_dependent
-from ..util import unpack_block_diag, pack_block_diag, diag, pad_dims
+from ..util import unpack_block_diag, pack_block_diag, diag, pad_dims, cached
 
 
 def shift(x, p):
@@ -185,6 +185,12 @@ class VARDistribution(Distribution):
         _x2, xfeatures, features2, _num_steps = VARDistribution.summary_statistics(x, order)
         return np.einsum('ab,ia->ib', np.linalg.inv(features2), xfeatures)
 
+    @staticmethod
+    @cached()
+    def evaluate_square_residuals(x2, xfeatures, features2, coefficient_mean, coefficient_outer):
+        return x2 - 2 * np.einsum('ia,ia->i', xfeatures, coefficient_mean) + \
+            np.einsum('ab,iab', features2, coefficient_outer)
+
     def natural_parameters(self, x, variable):
         # Extract the summary statistics
         x2, xfeatures, features2, num_steps = x
@@ -199,8 +205,9 @@ class VARDistribution(Distribution):
                 'outer': - 0.5 * pad_dims(noise_precision, 3) * features2,
             }
 
-        residuals2 = x2 - 2 * np.sum(xfeatures * s(self._coefficients, 1), axis=1) + \
-            np.sum(features2 * s(self._coefficients, 'outer'), axis=(1, 2))
+        residuals2 = VARDistribution.evaluate_square_residuals(
+            x2, xfeatures, features2, s(self._coefficients, 1), s(self._coefficients, 'outer')
+        )
 
         if is_dependent(self._z, variable):
             return {
