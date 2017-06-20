@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from ..distributions import Distribution, DerivedDistribution
+from ..util import timeit
 
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,8 @@ class Model:
         self._factors = factors
         self._likelihoods = likelihoods
         self._update_order = update_order
+        self._update_times = {}
+        self._aggregate_natural_parameters_times = {}
 
         # Run over all the likelihoods, extract the 'x' parameter and ensure the factors all have
         # a prior
@@ -156,10 +159,12 @@ class Model:
         if isinstance(factor, str):
             factor = self._factors[factor]
         # Construct the sequence of natural parameters used to update this factor
-        natural_parameters = self.aggregate_natural_parameters(factor, **kwargs)
+        with timeit(self._aggregate_natural_parameters_times, factor):
+            natural_parameters = self.aggregate_natural_parameters(factor, **kwargs)
         assert natural_parameters, "failed to update %s because natural parameters are " \
             "missing" % factor
-        factor.update_from_natural_parameters(natural_parameters)
+        with timeit(self._update_times, factor):
+            factor.update_from_natural_parameters(natural_parameters)
         return factor
 
     @property
