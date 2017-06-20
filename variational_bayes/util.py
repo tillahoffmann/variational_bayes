@@ -1,4 +1,8 @@
 import itertools as it
+from time import time
+import collections
+import hashlib
+import contextlib
 import numpy as np
 import scipy.special
 from ._util import pack_block_diag, unpack_block_diag
@@ -135,3 +139,37 @@ def cluster_order(inferred, actual):
             best_ordering = ordering
 
     return list(best_ordering)
+
+
+@contextlib.contextmanager
+def timeit(dictionary, key):
+    """
+    Time the execution and add the time to a dictionary with the given key
+    """
+    start = time()
+    yield
+    end = time()
+    if key in dictionary:
+        dictionary[key].append(end - start)
+    else:
+        dictionary[key] = [end - start]
+
+
+class cached:
+    def __init__(self, maxsize=2):
+        self.cache = collections.OrderedDict()
+        self.maxsize = maxsize
+
+    def __call__(self, f):
+        def _wrapped(*args):
+            key = sum(map(id, args))
+            try:
+                return self.cache[key]
+            except KeyError:
+                value = f(*args)
+                self.cache[key] = value
+                if len(self.cache) > self.maxsize:
+                    self.cache.popitem(last=False)
+                return value
+
+        return _wrapped
