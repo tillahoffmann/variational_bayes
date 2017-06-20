@@ -42,7 +42,15 @@ class MultiNormalDistribution(Distribution):
         return {
             'mean': mean,
             'precision': precision,
+            '_cov': cov,  # Add the covariance matrix because we've already computed it
         }
+
+    def update(self, canonical_parameters, **kwargs):
+        super(MultiNormalDistribution, self).update(canonical_parameters, **kwargs)
+        # See whether the covariance is precomputed
+        cov = canonical_parameters.pop('_cov', None)
+        if cov is not None:
+            self._statistics['cov'] = cov
 
     def assert_valid_parameters(self):
         mean = s(self._mean, 1)
