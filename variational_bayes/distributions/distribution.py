@@ -31,10 +31,12 @@ class Distribution:
     Base class for distributions that act as factors in the approximate posterior.
     """
     sample_ndim = None
+    VALIDATE_PARAMETERS = True
 
-    def __init__(self, **parameters):
+    def __init__(self, validate_parameters=None, **parameters):
         # Define a cache for statistics
         self._statistics = {}
+        self._validate_parameters = validate_parameters
         self.parameters = {key: value if isinstance(value, Distribution) else np.asarray(value)
                            for key, value in parameters.items()}
         self.assert_valid_parameters()
@@ -53,6 +55,8 @@ class Distribution:
         canonical_parameters.update(kwargs)
         # Update the canonical parameters
         for key, value in canonical_parameters.items():
+            if key.startswith('_'):
+                continue
             assert key in self.parameters, "parameter %s is not part of %s" % (key, self)
             actual = np.shape(value)
             desired = np.shape(self.parameters[key])
@@ -60,7 +64,11 @@ class Distribution:
                 (key, self, desired, actual)
             self.parameters[key] = np.asarray(value)
 
-        self.assert_valid_parameters()
+        validate_parameters = self.VALIDATE_PARAMETERS if self._validate_parameters is None else \
+            self._validate_parameters
+
+        if validate_parameters:
+            self.assert_valid_parameters()
 
     def update_from_natural_parameters(self, natural_parameters):
         """
