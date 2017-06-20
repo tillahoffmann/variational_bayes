@@ -74,10 +74,9 @@ class ModelEnsemble:
             if tqdm:
                 generator = tqdm(generator, total=len(num_models))
             for item in generator:
-                if isinstance(item[1], Exception):
-                    _type, _value, _traceback = item
-                    logger.warning("exception in model optimization\n%s",
-                                   "".join(traceback.format_tb(_traceback)))
+                if isinstance(item[0], Exception):
+                    _, tb = item
+                    logger.warning("exception in model optimization\n%s", tb)
                     continue
                 model, elbo, converged = item
                 self.elbos.append(elbo)
@@ -104,4 +103,5 @@ class ModelEnsemble:
             )
             return model, elbos[-1], converged
         except Exception:
-            return sys.exc_info()
+            _, value, tb = sys.exc_info()
+            return value, "".join(traceback.format_tb(tb))
