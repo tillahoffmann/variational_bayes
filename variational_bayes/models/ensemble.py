@@ -1,4 +1,6 @@
 import numbers
+import sys
+import traceback
 import logging
 import functools as ft
 import multiprocessing
@@ -72,8 +74,10 @@ class ModelEnsemble:
             if tqdm:
                 generator = tqdm(generator, total=len(num_models))
             for item in generator:
-                if isinstance(item, Exception):
-                    logger.warning("exception in model optimization: %s", item)
+                if isinstance(item[1], Exception):
+                    _type, _value, _traceback = item
+                    logger.warning("exception in model optimization\n%s",
+                                   "".join(traceback.format_tb(_traceback)))
                     continue
                 model, elbo, converged = item
                 self.elbos.append(elbo)
@@ -99,5 +103,5 @@ class ModelEnsemble:
                 steps, update_order=update_order, convergence_predicate=convergence_predicate
             )
             return model, elbos[-1], converged
-        except Exception as ex:
-            return ex
+        except Exception:
+            return sys.exc_info()
