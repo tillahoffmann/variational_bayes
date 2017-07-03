@@ -144,7 +144,7 @@ def unpack_coefficient_var(var):
 
 
 class VARDistribution(Distribution):
-    def __init__(self, z, coefficients, noise_precision):
+    def __init__(self, coefficients, noise_precision, z=None):
         super(VARDistribution, self).__init__(z=z, coefficients=coefficients, noise_precision=noise_precision)
 
     def assert_valid_parameters(self):
@@ -154,8 +154,11 @@ class VARDistribution(Distribution):
         assert np.ndim(coefficients) == 2
         n, a = coefficients.shape
         assert (a - 1) % n == 0
-        z = s(self._z, 1)
-        assert z.shape[0] == n
+        if self._z is None:
+            assert noise_precision.shape[0] == n
+        else:
+            z = s(self._z, 1)
+            assert z.shape[0] == n
 
     @staticmethod
     def summary_statistics(x, order):
@@ -185,21 +188,16 @@ class VARDistribution(Distribution):
         _x2, xfeatures, features2, _num_steps = VARDistribution.summary_statistics(x, order)
         return np.einsum('ab,ia->ib', np.linalg.inv(features2), xfeatures)
 
-    '''
-    @staticmethod
-    @cached()
-    def evaluate_square_residuals(x2, xfeatures, features2, coefficient_mean, coefficient_outer):
-        return x2 - 2 * np.einsum('ia,ia->i', xfeatures, coefficient_mean) + \
-            np.einsum('ab,iab', features2, coefficient_outer)
-    '''
-
     def natural_parameters(self, x, variable):
         # Extract the summary statistics
         x2, xfeatures, features2, num_steps = x
 
         if is_dependent(self._coefficients, variable):
             # Compute the noise-precision per node
-            noise_precision = np.dot(s(self._z, 1), s(self._noise_precision, 1))
+            if self._z is None:
+                noise_precision = s(self._noise_precision, 1)
+            else:
+                noise_precision = np.dot(s(self._z, 1), s(self._noise_precision, 1))
             return {
                 # This has shape (n, a)
                 'mean': xfeatures * noise_precision[:, None],
@@ -207,23 +205,39 @@ class VARDistribution(Distribution):
                 'outer': - 0.5 * pad_dims(noise_precision, 3) * features2,
             }
 
-        residuals2 = x2 - 2 * np.sum(xfeatures * s(self._coefficients, 1), axis=1) + \
-            np.sum(features2 * s(self._coefficients, 'outer'), axis=(1, 2))
+        residuals2 = self._evaluate_residuals2(x)
 
-        if is_dependent(self._z, variable):
+        if self._z is not None and is_dependent(self._z, variable):
             return {
                 'mean': 0.5 * (s(self._noise_precision, 'log') - np.log(2 * np.pi)) * num_steps - \
                     0.5 * residuals2[:, None] * s(self._noise_precision, 1)
             }
 
         elif is_dependent(self._noise_precision, variable):
-            return {
-                'log': 0.5 * np.sum(s(self._z, 1), axis=0) * num_steps,
-                'mean': -0.5 * np.sum(s(self._z, 1) * residuals2[:, None], axis=0)
-            }
+            if self._z is None:
+                return {
+                    'log': 0.5 * np.ones(residuals2.shape[0]) * num_steps,
+                    'mean': -0.5 * residuals2
+                }
+            else:
+                return {
+                    'log': 0.5 * np.sum(s(self._z, 1), axis=0) * num_steps,
+                    'mean': -0.5 * np.sum(s(self._z, 1) * residuals2[:, None], axis=0)
+                }
+
+    def _evaluate_residuals2(self, x):
+        x2, xfeatures, features2, num_steps = x
+        return x2 - 2 * np.sum(xfeatures * s(self._coefficients, 1), axis=1) + \
+            np.sum(features2 * s(self._coefficients, 'outer'), axis=(1, 2))
 
     def log_proba(self, x):
-        return s(self._z, 1) * self.natural_parameters(x, self._z)['mean']
+        if self._z is None:
+            residuals2 = self._evaluate_residuals2(x)
+            num_steps = x[3]
+            return 0.5 * (s(self._noise_precision, 'log') - np.log(2 * np.pi)) * num_steps - \
+                    0.5 * residuals2 * s(self._noise_precision, 1)
+        else:
+            return s(self._z, 1) * self.natural_parameters(x, self._z)['mean']
 
 
 class VARBiasDistribution(DerivedDistribution):

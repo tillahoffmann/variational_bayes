@@ -37,8 +37,8 @@ class Distribution:
         # Define a cache for statistics
         self._statistics = {}
         self._validate_parameters = validate_parameters
-        self.parameters = {key: value if isinstance(value, Distribution) else np.asarray(value)
-                           for key, value in parameters.items()}
+        self.parameters = {key: value if isinstance(value, Distribution) or value is None
+                           else np.asarray(value) for key, value in parameters.items()}
         self.assert_valid_parameters()
 
     def update(self, canonical_parameters, **kwargs):

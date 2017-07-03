@@ -7,7 +7,8 @@ from ..distributions import NormalDistribution, GammaDistribution, MultiNormalDi
 from .interacting_mixture_model import InteractingMixtureModel
 
 
-def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=True):
+def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=True,
+              shared_noise=True):
     """
     Build a hierarchical vector-autoregressive model.
 
@@ -19,6 +20,17 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Tr
     epsilon = 1e-6
 
     if uniform_ic:
+        if shared_noise:
+            noise_precision = GammaDistribution(
+                1e-3 + np.random.normal(0, epsilon, num_groups),
+                1e-3 * np.ones(num_groups),
+            )
+        else:
+            noise_precision = GammaDistribution(
+                1e-3 + np.random.normal(0, epsilon, num_nodes),
+                1e-3 * np.ones(num_nodes),
+            )
+
         factors = {
             'coefficients': MultiNormalDistribution(
                 np.zeros((num_nodes, order * num_nodes + 1)),
@@ -43,16 +55,14 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Tr
                 order * np.ones((num_groups, num_groups)),
                 order * np.ones((num_groups, num_groups, 1, 1)) * np.eye(order)
             ),
-            'noise_precision': GammaDistribution(
-                1e-3 + np.random.normal(0, epsilon, num_groups),
-                1e-3 * np.ones(num_groups),
-            ),
+            'noise_precision': noise_precision,
             # Only random IC to break symmetry
             'z': CategoricalDistribution(
                 np.random.dirichlet(np.ones(num_groups) / epsilon, num_nodes),
             ),
         }
     else:
+        raise DeprecationWarning
         factors = {
             'coefficients': MultiNormalDistribution(
                 np.random.normal(0, epsilon, (num_nodes, order * num_nodes + 1)),
@@ -111,7 +121,7 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Tr
             ReshapedDistribution(q_adjacency, (num_nodes, num_nodes, 1, 1))
         ),
         CategoricalDistribution(q_density).likelihood(q_z),
-        VARDistribution(q_z, q_coefficients, q_noise_precision).likelihood(
+        VARDistribution(q_coefficients, q_noise_precision, q_z if shared_noise else None).likelihood(
             VARDistribution.summary_statistics(x, order)
         ),
         # Prior for the density
