@@ -60,13 +60,11 @@ class Model:
         # Run over all the likelihoods, extract the 'x' parameter and ensure the factors all have
         # a prior
         lookup = {v: k for k, v in factors.items()}
-        priors = {}
+        priors = {v: [] for v in factors.values()}
 
         for likelihood in self._likelihoods:
             x = likelihood.x
             if isinstance(x, Distribution):
-                if x not in priors:
-                    priors[x] = []
                 priors[x].append(likelihood)
 
         # Run over the factors and ensure they all have exactly one prior
