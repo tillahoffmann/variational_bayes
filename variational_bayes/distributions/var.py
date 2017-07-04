@@ -2,7 +2,7 @@ import numpy as np
 
 from .distribution import Distribution, Likelihood, assert_constant, s, DerivedDistribution, \
     statistic, is_dependent
-from ..util import unpack_block_diag, pack_block_diag, diag, pad_dims
+from ..util import unpack_block_diag, pack_block_diag, diag, pad_dims, is_positive_definite
 
 
 def shift(x, p):
@@ -166,6 +166,8 @@ class VARDistribution(Distribution):
         assert_constant(x)
         assert x.ndim == 2, "observations must be two-dimensional"
         num_steps, num_nodes = x.shape
+        assert num_steps > num_nodes * order + 1, "number of steps must be at least as large as " \
+            "the number of dimensions of the coefficient vector (num_nodes * order + 1)"
         # Evaluate the features, flatten along the last dimension to get shape (t, n * p)
         shape = (num_steps, num_nodes * order)
         features = evaluate_features(x, order).reshape(shape)
@@ -180,6 +182,8 @@ class VARDistribution(Distribution):
         xfeatures = np.einsum('ti,ta->ia', x, features)
         # ... and the square of the features
         features2 = np.einsum('ta,tb->ab', features, features)
+        assert is_positive_definite(features2), "outer product of features is not positive " \
+            "semi-definite"
 
         return x2, xfeatures, features2, num_steps
 
