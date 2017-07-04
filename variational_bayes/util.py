@@ -173,3 +173,18 @@ class cached:
                 return value
 
         return _wrapped
+
+
+def std_mean(x, axis=None):
+    """
+    Evaluate the unbiased standard deviation of the mean.
+    """
+    x = np.asarray(x)
+    std = np.std(x, axis)
+    if axis is None:
+        n = x.size
+    elif hasattr(axis, '__iter__'):
+        n = np.prod(x.shape(list(axis)))
+    else:
+        n = x.shape[axis]
+    return std / np.sqrt(n - 1)
