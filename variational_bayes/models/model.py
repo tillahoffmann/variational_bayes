@@ -57,21 +57,6 @@ class Model:
         self._update_times = {}
         self._aggregate_natural_parameters_times = {}
 
-        # Run over all the likelihoods, extract the 'x' parameter and ensure the factors all have
-        # a prior
-        lookup = {v: k for k, v in factors.items()}
-        priors = {v: [] for v in factors.values()}
-
-        for likelihood in self._likelihoods:
-            x = likelihood.x
-            if isinstance(x, Distribution):
-                priors[x].append(likelihood)
-
-        # Run over the factors and ensure they all have exactly one prior
-        for factor, p in priors.items():
-            assert p, "%s does not have a prior" % lookup[factor]
-            assert len(p) < 2, "%s has more than one prior: %s" % (lookup[factor], p)
-
         # Ensure only real distributions are added as factors and no child distributions
         for key, value in self._factors.items():
             assert not isinstance(value, DerivedDistribution), "%s is a ChildDistribution" % key
