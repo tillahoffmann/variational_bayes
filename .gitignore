@@ -96,6 +96,7 @@ examples/*.html
 examples/*.py
 data/sp100/**/*.csv
 data/sp100/**/*.log
+*.pickle
 
 # Cython
 variational_bayes/*.c
