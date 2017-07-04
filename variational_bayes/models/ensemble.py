@@ -23,10 +23,11 @@ class ModelEnsemble:
     keep_models : bool
         whether to store all models (may have a significant memory footprint)
     """
-    def __init__(self, model_init, model_args=None, keep_models=False):
+    def __init__(self, model_init, model_args=None, model_kwargs=None, keep_models=False):
         self.keep_models = keep_models
         self.model_init = model_init
         self.model_args = model_args or []
+        self.model_kwargs = model_kwargs or {}
         self.elbos = []
         self.converged = []
         self._models = []
@@ -96,7 +97,7 @@ class ModelEnsemble:
 
     def _optimize_single_model(self, steps, update_order, convergence_predicate, *_):
         try:
-            model = self.model_init(*self.model_args)
+            model = self.model_init(*self.model_args, **self.model_kwargs)
             # Optimise the model
             elbos, converged = model.update(
                 steps, update_order=update_order, convergence_predicate=convergence_predicate
