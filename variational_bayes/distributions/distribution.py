@@ -318,7 +318,8 @@ class Likelihood:
 
     def __repr__(self):
         return "Likelihood@0x%x(distribution=%s, x=%s)" % \
-            (id(self), self.distribution, array_repr(self.x))
+            (id(self), self.distribution,
+            array_repr(self.x) if isinstance(self.x, np.ndarray) else self.x)
 
 
 def evaluate_statistic(x, statistic):
