@@ -2,6 +2,7 @@ import itertools as it
 import pytest
 import variational_bayes as vb
 import numpy as np
+import scipy.stats
 
 
 @pytest.fixture(params=[37, 13])
@@ -44,6 +45,26 @@ def test_diag_adjacency(num_nodes, order):
         np.testing.assert_allclose(diag.mean[i], adjacency[i, i])
         np.testing.assert_allclose(diag.outer[i], adjacency[i, i, :, None] * adjacency[i, i, None])
 
+
+def test_diag_adjacency_roundtrip(num_nodes, order):
+    idx = np.diag_indices(num_nodes)
+    precision = scipy.stats.wishart.rvs(order + 1, np.eye(order), (num_nodes, num_nodes))
+    if precision.ndim != 4:
+        precision = vb.pad_dims(precision, 4)
+    adjacency = vb.MultiNormalDistribution(
+        np.random.normal(0, 1, (num_nodes, num_nodes, order)),
+        precision
+    )
+    diag = vb.VARDiagAdjacencyDistribution(adjacency)
+    # Evaluate natural parameters for a multinormal distribution
+    natural_parameters = {
+        'mean': np.einsum('...ij,...j', np.linalg.inv(diag.cov), diag.mean),
+        'outer': -0.5 * np.linalg.inv(diag.cov)
+    }
+    actual_natural_parameters = diag.transform_natural_parameters(None, natural_parameters)
+    expected_natural_parameters = adjacency.natural_parameters(None, None)
+    for key, expected in expected_natural_parameters.items():
+        np.testing.assert_allclose(actual_natural_parameters[key][idx], expected[idx], err_msg=key)
 
 
 @pytest.fixture

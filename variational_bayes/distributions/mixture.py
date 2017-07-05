@@ -62,8 +62,9 @@ class MixtureDistribution(Distribution):  # pylint: disable=W0223
 
 
 class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
-    def __init__(self, z, parent):
+    def __init__(self, z, parent, self_interaction=True):
         self._parent = parent
+        self._self_interaction = self_interaction
         # We add the parameters of the parent to this distribution (which is a hack cf. #7)
         super(InteractingMixtureDistribution, self).__init__(z=z, **self._parent.parameters)
 
@@ -71,12 +72,20 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
         z = s(self._z, 1)
         assert z.ndim == 2, "z must be two-dimensional"
 
+    @property
+    def zz(self):
+        zz = s(self.z, 'interaction')
+        # Set the diagonal to zero if there is no self-interaction
+        if not self._self_interaction:
+            zz[np.diag_indices(zz.shape[0])] = 0
+        return zz
+
     def log_proba(self, x):
         # Evaluate the log-probability of the parent distribution with expected shape `(n, n, k, k)`,
         # where `n` is the number of observations and `k` is the number of components
         log_proba = self._parent.log_proba(x)
         # Sum over the trailing dimensions weighted by the interaction
-        zz = s(self.z, 'interaction')
+        zz = self.zz
         assert zz.shape == log_proba.shape
         return np.sum(log_proba * zz, axis=(2, 3))
 
@@ -90,7 +99,7 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
         if natural_parameters is None:
             return None
 
-        zz = s(self.z, 'interaction')
+        zz = self.zz
 
         if is_dependent(x, variable):
             # Aggregate over the indicators to give us natural parameters for the observations
@@ -154,8 +163,9 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
         for a in nodes:
             # Initialize the natural parameters for this observation
             _np = np.copy(natural_parameters[a])
-            # Add the diagonal term
-            _np += np.diag(likelihood[a, a])
+            # Add the diagonal term if there are self-interactions
+            if self._self_interaction:
+                _np += np.diag(likelihood[a, a])
             # Add the interaction terms (but set the proba associated with i to zero everywhere
             # first to avoid double counting)
             proba[a] = 0

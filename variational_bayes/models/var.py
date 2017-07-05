@@ -3,98 +3,96 @@ import numpy as np
 from ..distributions import NormalDistribution, GammaDistribution, MultiNormalDistribution, \
     MixtureDistribution, InteractingMixtureDistribution, CategoricalDistribution, \
     DirichletDistribution, VARAdjacencyDistribution, VARBiasDistribution, VARDistribution, \
-    ReshapedDistribution, WishartDistribution, Distribution
+    ReshapedDistribution, WishartDistribution, Distribution, VARDiagAdjacencyDistribution
 from .interacting_mixture_model import InteractingMixtureModel
 
 
-def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=True,
-              shared_noise=True):
+def var_model(x, order, num_groups, update_order=None, given=None, shared_noise=True,
+              independent_diag=False):
     """
     Build a hierarchical vector-autoregressive model.
 
-    Given is the set of factors that is assumed known for debugging purposes.
+    Parameters
+    ----------
+    x : np.ndarray
+        tensor of observations with shape `(t, n)`
+    order : int
+        order of the autoregressive process
+    num_groups : int
+        number of groups
+    update_order : None
+        order in which to update the parameters
+    given : dict
+        dictionary of values assumed known for debugging purposes keyed by the same name
+        as the factors of the model
+    uniform_ic : bool
+        whether to use uniform initial conditions (except for the community assignments to break
+        symmetry)
+    shared_noise : bool
+        whether to share the noise parameter within groups (quite a strong assumption and it makes
+        generalising the model more difficult)
+    independent_diag : bool
+        whether to use independent priors for the diagonal of the adjacency matrix rather than
+        imposing the same prior as for within-group interactions
     """
     given = given or {}
     _, num_nodes = x.shape
 
     epsilon = 1e-6
 
-    if uniform_ic:
-        if shared_noise:
-            noise_precision = GammaDistribution(
-                1e-3 + np.random.normal(0, epsilon, num_groups),
-                1e-3 * np.ones(num_groups),
-            )
-        else:
-            noise_precision = GammaDistribution(
-                1e-3 + np.random.normal(0, epsilon, num_nodes),
-                1e-3 * np.ones(num_nodes),
-            )
-
-        factors = {
-            'coefficients': MultiNormalDistribution(
-                np.zeros((num_nodes, order * num_nodes + 1)),
-                np.ones((num_nodes, 1, 1)) * np.eye(order * num_nodes + 1) * epsilon
-            ),
-            'density': DirichletDistribution(
-                np.ones(num_groups)
-            ),
-            'bias_mean': NormalDistribution(
-                np.ones(num_groups),
-                np.ones(num_groups) * epsilon,
-            ),
-            'bias_precision': GammaDistribution(
-                epsilon * np.ones(num_groups),
-                epsilon * np.ones(num_groups),
-            ),
-            'adjacency_mean': MultiNormalDistribution(
-                np.zeros((num_groups, num_groups, order)),
-                np.ones((num_groups, num_groups, 1, 1)) * np.eye(order) * epsilon
-            ),
-            'adjacency_precision': WishartDistribution(
-                order * np.ones((num_groups, num_groups)),
-                order * np.ones((num_groups, num_groups, 1, 1)) * np.eye(order)
-            ),
-            'noise_precision': noise_precision,
-            # Only random IC to break symmetry
-            'z': CategoricalDistribution(
-                np.random.dirichlet(np.ones(num_groups) / epsilon, num_nodes),
-            ),
-        }
+    if shared_noise:
+        noise_precision = GammaDistribution(
+            1e-3 + np.random.normal(0, epsilon, num_groups),
+            1e-3 * np.ones(num_groups),
+        )
     else:
-        raise DeprecationWarning
-        factors = {
-            'coefficients': MultiNormalDistribution(
-                np.random.normal(0, epsilon, (num_nodes, order * num_nodes + 1)),
-                np.ones((num_nodes, 1, 1)) * np.eye(order * num_nodes + 1) * epsilon
-            ),
-            'density': DirichletDistribution(
-                np.random.uniform(1 - epsilon, 1 + epsilon, num_groups)
-            ),
-            'z': CategoricalDistribution(
-                np.random.dirichlet(np.ones(num_groups) / epsilon, num_nodes),
-            ),
-            'bias_mean': NormalDistribution(
-                np.random.normal(0, epsilon, num_groups),
-                np.ones(num_groups) * epsilon,
-            ),
-            'bias_precision': GammaDistribution(
-                1e-3 + np.random.normal(0, epsilon, num_groups),
-                1e-3 * np.ones(num_groups),
-            ),
-            'adjacency_mean': MultiNormalDistribution(
-                np.random.normal(0, epsilon, (num_groups, num_groups, order)),
-                np.ones((num_groups, num_groups, 1, 1)) * np.eye(order) * epsilon
-            ),
-            'adjacency_precision': WishartDistribution(
-                order - 1 + 1e-3 + np.random.normal(0, epsilon, (num_groups, num_groups)),
-                (order - 1 + 1e-3) * np.ones((num_groups, num_groups, 1, 1)) * np.eye(order)
-            ),
-            'noise_precision': GammaDistribution(
-                1e-3 + np.random.normal(0, epsilon, num_groups),
-                1e-3 * np.ones(num_groups),
-            )
-        }
+        noise_precision = GammaDistribution(
+            1e-3 + np.random.normal(0, epsilon, num_nodes),
+            1e-3 * np.ones(num_nodes),
+        )
+
+    factors = {
+        'coefficients': MultiNormalDistribution(
+            np.zeros((num_nodes, order * num_nodes + 1)),
+            np.ones((num_nodes, 1, 1)) * np.eye(order * num_nodes + 1) * epsilon
+        ),
+        'density': DirichletDistribution(
+            np.ones(num_groups)
+        ),
+        'bias_mean': NormalDistribution(
+            np.ones(num_groups),
+            np.ones(num_groups) * epsilon,
+        ),
+        'bias_precision': GammaDistribution(
+            epsilon * np.ones(num_groups),
+            epsilon * np.ones(num_groups),
+        ),
+        'adjacency_mean': MultiNormalDistribution(
+            np.zeros((num_groups, num_groups, order)),
+            np.ones((num_groups, num_groups, 1, 1)) * np.eye(order) * epsilon
+        ),
+        'adjacency_precision': WishartDistribution(
+            order * np.ones((num_groups, num_groups)),
+            order * np.ones((num_groups, num_groups, 1, 1)) * np.eye(order)
+        ),
+        'noise_precision': noise_precision,
+        # Only random initial conditions to break symmetry
+        'z': CategoricalDistribution(
+            np.random.dirichlet(np.ones(num_groups) / epsilon, num_nodes),
+        ),
+    }
+
+    # Add factors for the diagonal of the adjacency matrix
+    if independent_diag:
+        factors['diag_mean'] = MultiNormalDistribution(
+            np.zeros((num_groups, order)),
+            np.ones((num_groups, 1, 1)) * np.eye(order) * epsilon
+        )
+        factors['diag_precision'] = WishartDistribution(
+            order * np.ones(num_groups),
+            order * np.ones((num_groups, 1, 1)) * np.eye(order)
+        )
+
     given = given or {}
     factors.update(given)
 
@@ -109,6 +107,7 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Tr
     q_density = factors['density']
     q_adjacency = VARAdjacencyDistribution(q_coefficients)
     q_bias = VARBiasDistribution(q_coefficients)
+    q_diag = VARDiagAdjacencyDistribution(q_adjacency)
 
 
     likelihoods = [
@@ -116,7 +115,8 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Tr
             ReshapedDistribution(q_bias, (num_nodes, 1))
         ),
         InteractingMixtureDistribution(
-            q_z, MultiNormalDistribution(q_adjacency_mean, q_adjacency_precision)
+            q_z, MultiNormalDistribution(q_adjacency_mean, q_adjacency_precision),
+            self_interaction=not independent_diag
         ).likelihood(
             ReshapedDistribution(q_adjacency, (num_nodes, num_nodes, 1, 1))
         ),
@@ -134,17 +134,32 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Tr
         WishartDistribution(order - 1 + 1e-6, np.eye(order) * 1e-6).likelihood(q_adjacency_precision)
     ]
 
-    if uniform_ic:
-        update_order = update_order or [
+    # Add likelihoods for the independent diagonal
+    if independent_diag:
+        likelihoods.extend([
+            MixtureDistribution(q_z, MultiNormalDistribution(
+                factors['diag_mean'], factors['diag_precision']
+            )).likelihood(ReshapedDistribution(q_diag, (num_nodes, 1))),
+            # Priors for the diagonal part
+            MultiNormalDistribution(np.zeros(order), 1e-6 * np.eye(order))
+                .likelihood(factors['diag_mean']),
+            WishartDistribution(order - 1 + 1e-6, np.eye(order) * 1e-6)
+                .likelihood(factors['diag_precision'])
+        ])
+
+    if independent_diag:
+        default_update_order = [
+            "coefficients", "noise_precision", "bias_mean", "bias_precision", "adjacency_mean",
+            "adjacency_precision", 'diag_mean', 'diag_precision', "z", "density"
+        ]
+    else:
+        default_update_order = [
             "coefficients", "noise_precision", "bias_mean", "bias_precision", "adjacency_mean",
             "adjacency_precision", "z", "density"
         ]
-    else:
-        update_order = update_order or [
-            "coefficients", "adjacency_mean", "adjacency_precision", "bias_mean", "bias_precision",
-            "noise_precision", "z", "density"
-        ]
+    update_order = update_order or default_update_order
 
+    # Do not update fixed factors
     for key in given:
         update_order.remove(key)
 
@@ -152,4 +167,5 @@ def var_model(x, order, num_groups, update_order=None, given=None, uniform_ic=Tr
     model = InteractingMixtureModel(factors, likelihoods, update_order)
     model.adjacency = q_adjacency
     model.bias = q_bias
+    model.adjacency_diag = q_diag
     return model
