@@ -74,7 +74,7 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
 
     @property
     def zz(self):
-        zz = s(self.z, 'interaction')
+        zz = s(self.z, 'interaction').copy()
         # Set the diagonal to zero if there is no self-interaction
         if not self._self_interaction:
             zz[np.diag_indices(zz.shape[0])] = 0
@@ -105,7 +105,7 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
             # Aggregate over the indicators to give us natural parameters for the observations
             axis = (2, 3)
         else:
-            # Aggregate over the observations to give us natural parameters for the mixture
+            # Aggregate over the observations to give us natural parameters for the mixture parameters
             axis = (0, 1)
 
         for key, value in natural_parameters.items():
@@ -129,6 +129,9 @@ class InteractingMixtureDistribution(Distribution):  # pylint: disable=W0223
         q_i &= \sum_{k} z_{ik} \E{\log P(x_{ii}|theta_{kk})} \\
             &\quad + \sum_{j\neq i, k, l} z_{ik}\E{z_{jl}} \E{\log P(x_{ij}|theta_{kl})}
         \end{align}
+
+        If we ignore the term due to $i=j$, we omit self interactions which may follow a different
+        distribution than interaction amongst $i\neq j$ in the same group.
 
         Parameters
         ----------
