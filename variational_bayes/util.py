@@ -138,7 +138,7 @@ def cluster_order(inferred, actual):
             best_loss = loss
             best_ordering = ordering
 
-    return list(best_ordering)
+    return None if best_ordering is None else list(best_ordering)
 
 
 @contextlib.contextmanager
