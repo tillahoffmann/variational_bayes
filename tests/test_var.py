@@ -37,6 +37,15 @@ def test_pack_unpack_coefficient_var_roundtrip(num_nodes, order):
     assert np.sum(packed == 0) == packed.size - adjacency_var.size - bias_var.size
 
 
+def test_diag_adjacency(num_nodes, order):
+    adjacency = np.random.normal(0, 1, (num_nodes, num_nodes, order))
+    diag = vb.VARDiagAdjacencyDistribution(adjacency)
+    for i in range(num_nodes):
+        np.testing.assert_allclose(diag.mean[i], adjacency[i, i])
+        np.testing.assert_allclose(diag.outer[i], adjacency[i, i, :, None] * adjacency[i, i, None])
+
+
+
 @pytest.fixture
 def coefficients(num_nodes, order):
     return vb.MultiNormalDistribution(

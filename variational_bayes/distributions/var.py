@@ -275,7 +275,7 @@ class VARBiasDistribution(DerivedDistribution):
 
 class VARAdjacencyDistribution(DerivedDistribution):
     """
-    Child distribution representing the shape `(n, n, p)` adjacency of each series.
+    Child distribution representing the shape `(n, n, p)` adjacency.
     """
     def __init__(self, coefficients):
         super(VARAdjacencyDistribution, self).__init__(coefficients)
@@ -302,6 +302,54 @@ class VARAdjacencyDistribution(DerivedDistribution):
             'mean': pack_coefficients(natural_parameters['mean'], None),
             'outer': pack_coefficient_var(natural_parameters['outer'], None)
         }
+
+
+class VARDiagAdjacencyDistribution(DerivedDistribution):
+    """
+    Child distribution representing the shape `(n, p)` diagonal of the adjacency.
+    """
+    def __init__(self, adjacency):
+        super(VARDiagAdjacencyDistribution, self).__init__(adjacency)
+        self._parent = adjacency
+        # Create an index
+        self._diag_indices = np.diag_indices(s(self._parent, 1).shape[0])
+
+    @statistic
+    def mean(self):
+        return s(self._parent, 1)[self._diag_indices]
+
+    @statistic
+    def cov(self):
+        return s(self._parent, 'cov')[self._diag_indices]
+
+    @statistic
+    def outer(self):
+        return s(self._parent, 'outer')[self._diag_indices]
+
+    @statistic
+    def var(self):
+        return diag(self.cov)
+
+    def transform_natural_parameters(self, distribution, natural_parameters):
+        """
+        For the natural parameter associated with the mean, we have an `(n, p)` matrix which we want
+        to transform to an `(n, n, p)` tensor for the full adjacency tensor.
+
+        For the outer product, we have an `(n, p, p)` tensor which we want to transform to an
+        `(n, n, p, p)` tensor for the full adjacency tensor.
+        """
+        n, p = natural_parameters['mean'].shape
+        mean = np.zeros((n, n, p))
+        mean[self._diag_indices] = natural_parameters['mean']
+
+        outer = np.zeros((n, n, p, p))
+        outer[self._diag_indices] = natural_parameters['outer']
+
+        return {
+            'mean': mean,
+            'outer': outer,
+        }
+
 
 
 def simulate_series(bias, ar_coefficients, noise_precision, num_steps, x=None):
