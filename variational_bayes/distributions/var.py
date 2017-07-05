@@ -324,7 +324,7 @@ class VARDiagAdjacencyDistribution(DerivedDistribution):
 
     @statistic
     def outer(self):
-        return s(self._parent, 'outer')[self._diag_indices]
+        return self.mean[..., None, :] * self.mean[..., :, None] + self.cov
 
     @statistic
     def var(self):

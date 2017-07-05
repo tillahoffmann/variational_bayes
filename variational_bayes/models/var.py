@@ -141,7 +141,7 @@ def var_model(x, order, num_groups, update_order=None, given=None, shared_noise=
                 factors['diag_mean'], factors['diag_precision']
             )).likelihood(ReshapedDistribution(q_diag, (num_nodes, 1))),
             # Priors for the diagonal part
-            MultiNormalDistribution(np.zeros(order), 1e-6 * np.eye(order))
+            MultiNormalDistribution(np.zeros(order), 1e-4 * np.eye(order))
                 .likelihood(factors['diag_mean']),
             WishartDistribution(order - 1 + 1e-6, np.eye(order) * 1e-6)
                 .likelihood(factors['diag_precision'])
