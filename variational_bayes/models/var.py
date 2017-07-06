@@ -8,7 +8,7 @@ from .interacting_mixture_model import InteractingMixtureModel
 
 
 def var_model(x, order, num_groups, update_order=None, given=None, shared_noise=True,
-              independent_diag=False):
+              independent_diag=False, filter_nans=False):
     """
     Build a hierarchical vector-autoregressive model.
 
@@ -122,7 +122,7 @@ def var_model(x, order, num_groups, update_order=None, given=None, shared_noise=
         ),
         CategoricalDistribution(q_density).likelihood(q_z),
         VARDistribution(q_coefficients, q_noise_precision, q_z if shared_noise else None).likelihood(
-            VARDistribution.summary_statistics(x, order)
+            VARDistribution.summary_statistics(x, order, filter_nans)
         ),
         # Prior for the density
         DirichletDistribution(np.ones(num_groups)).likelihood(q_density),

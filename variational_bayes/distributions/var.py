@@ -161,7 +161,7 @@ class VARDistribution(Distribution):
             assert z.shape[0] == n
 
     @staticmethod
-    def evaluate_features(x, order):
+    def evaluate_features(x, order, filter_nans=False):
         # Assert that we have constant observations
         assert_constant(x)
         assert x.ndim == 2, "observations must be two-dimensional"
@@ -176,11 +176,16 @@ class VARDistribution(Distribution):
         # Drop the first `order` features and observations because the zero-padding can lead to oddities
         features = features[order:]
         x = x[order:]
+        if np.any(np.isnan(x)) or np.any(np.isnan(features)):
+            assert filter_nans, "found missing values in features or time series"
+            missing = np.any(np.isnan(x), axis=1) | np.any(np.isnan(features), axis=1)
+            x = x[~missing]
+            features = features[~missing]
         return x, features
 
     @staticmethod
-    def summary_statistics(x, order):
-        x, features = VARDistribution.evaluate_features(x, order)
+    def summary_statistics(x, order, filter_nans=False):
+        x, features = VARDistribution.evaluate_features(x, order, filter_nans)
         # Precompute the square of the observations ...
         x2 = np.sum(np.square(x), axis=0)
         # ... the product of the observations and features ...
