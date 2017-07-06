@@ -1,6 +1,6 @@
 import numpy as np
 
-from .distribution import Distribution, Likelihood, assert_constant, s, DerivedDistribution, \
+from .distribution import Distribution, assert_constant, s, DerivedDistribution, \
     statistic, is_dependent
 from ..util import unpack_block_diag, pack_block_diag, diag, pad_dims, is_positive_definite
 

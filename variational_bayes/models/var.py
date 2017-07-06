@@ -5,6 +5,41 @@ from ..distributions import NormalDistribution, GammaDistribution, MultiNormalDi
     DirichletDistribution, VARAdjacencyDistribution, VARBiasDistribution, VARDistribution, \
     ReshapedDistribution, WishartDistribution, Distribution, VARDiagAdjacencyDistribution
 from .interacting_mixture_model import InteractingMixtureModel
+from .model import Model
+
+
+def naive_var_model(x, order, filter_nans=False):
+    """
+    Same as `var_model` but without hierarchical structure.
+    """
+    _, num_nodes = x.shape
+    factors = {
+        'coefficients': MultiNormalDistribution(
+            np.zeros((num_nodes, num_nodes * order + 1)),
+            np.ones((num_nodes, 1, 1)) * np.eye(num_nodes * order + 1)
+        ),
+        'noise_precision': GammaDistribution(
+            1e-3 * np.ones(num_nodes),
+            1e-3 * np.ones(num_nodes)
+        )
+    }
+    likelihoods = [
+        VARDistribution(factors['coefficients'], factors['noise_precision']).likelihood(
+            VARDistribution.summary_statistics(x, order, filter_nans)
+        ),
+        GammaDistribution(1e-6, 1e-6).likelihood(factors['noise_precision']),
+        MultiNormalDistribution(
+            np.zeros(num_nodes * order + 1),
+            np.eye(num_nodes * order + 1) * 1e-100
+        ).likelihood(factors['coefficients'])
+    ]
+
+    # Model without hierarchical structure
+    model = Model(factors, likelihoods)
+    model.bias = VARBiasDistribution(factors['coefficients'])
+    model.adjacency = VARAdjacencyDistribution(factors['coefficients'])
+    model.adjacency_diag = VARDiagAdjacencyDistribution(model.adjacency)
+    return model
 
 
 def var_model(x, order, num_groups, update_order=None, given=None, shared_noise=True,
@@ -142,9 +177,9 @@ def var_model(x, order, num_groups, update_order=None, given=None, shared_noise=
             )).likelihood(ReshapedDistribution(q_diag, (num_nodes, 1))),
             # Priors for the diagonal part
             MultiNormalDistribution(np.zeros(order), 1e-4 * np.eye(order))
-                .likelihood(factors['diag_mean']),
+            .likelihood(factors['diag_mean']),
             WishartDistribution(order - 1 + 1e-6, np.eye(order) * 1e-6)
-                .likelihood(factors['diag_precision'])
+            .likelihood(factors['diag_precision'])
         ])
 
     if independent_diag:
