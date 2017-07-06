@@ -22,8 +22,11 @@ class ModelEnsemble:
         sequence of arguments passed to `model_init`
     keep_models : bool
         whether to store all models (may have a significant memory footprint)
+    model_filter : callable
+        a function to determine whether a model should be added to the ensemble
     """
-    def __init__(self, model_init, model_args=None, model_kwargs=None, keep_models=False):
+    def __init__(self, model_init, model_args=None, model_kwargs=None, keep_models=False,
+                 model_filter=None):
         self.keep_models = keep_models
         self.model_init = model_init
         self.model_args = model_args or []
@@ -33,6 +36,7 @@ class ModelEnsemble:
         self._models = []
         self.best_model = None
         self.best_elbo = -np.inf
+        self.model_filter = model_filter
 
     @property
     def models(self):
@@ -80,6 +84,9 @@ class ModelEnsemble:
                     logger.warning("exception in model optimization\n%s", tb)
                     continue
                 model, elbo, converged = item
+                # Do not add this model to the ensemble if it does not pass the filter
+                if self.model_filter and not self.model_filter(model):
+                    continue
                 self.elbos.append(elbo)
                 self.converged.append(converged)
                 if self.keep_models:
