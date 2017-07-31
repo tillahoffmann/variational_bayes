@@ -90,3 +90,16 @@ class MultiNormalDistribution(Distribution):
                 'mean': - 0.5 * (s(x, 'outer') + s(self._mean, 'outer') -
                                  _outer - np.swapaxes(_outer, -1, -2))
             }
+
+    def aggregate_natural_parameters(self, args):
+        # Convert "square" factors to "outer" factors
+        for natural_parameters in args:
+            square = natural_parameters.pop('square', None)
+            if square is not None:
+                shape = square.shape + (square.shape[-1],)
+                outer = np.zeros(shape)
+                i = np.arange(square.shape[-1])
+                outer[..., i, i] = square
+                natural_parameters['outer'] = outer
+
+        return super(MultiNormalDistribution, self).aggregate_natural_parameters(args)
