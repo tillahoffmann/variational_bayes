@@ -245,3 +245,12 @@ def test_reshape():
 def test_pickle(distribution):
     reconstructed = pickle.loads(pickle.dumps(distribution))
     np.testing.assert_allclose(distribution.mean, reconstructed.mean)
+
+
+def test_copy():
+    d = vb.NormalDistribution(np.random.normal(0, 1, 10), np.ones(10))
+    c = d.copy()
+    d.parameters['precision'] *= 10
+    np.testing.assert_allclose(d.mean, c.mean)
+    np.testing.assert_equal(d._precision, 10)
+    np.testing.assert_equal(c._precision, 1)
