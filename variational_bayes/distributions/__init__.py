@@ -12,3 +12,4 @@ from .reshaped import *
 from .var import *
 from .wishart import *
 from .linear_regression import *
+from .collaborative_filtering import *

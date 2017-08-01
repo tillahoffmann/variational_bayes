@@ -3,42 +3,40 @@ import numpy as np
 from .distribution import Distribution, statistic, s, is_dependent
 
 
-class LinearRegressionDistribution(Distribution):
+class CollaborativeFilteringDistribution(Distribution):
     """
-    Distribution for linear regression.
+    Distribution for collaborative filtering.
 
     Parameters
     ----------
     features :
-        matrix of features for the linear regression. The leading dimension corresponds to the batch
-        dimension and the last dimension corresponds to the feature dimension.
+        matrix of latent-space positions with shape `(n, p)`, where `n` is the number of points and
+        `p` is the number of latent-space dimensions
     coefficients :
-        vector of regression coefficients
+        matrix of latent-space positions with shape `(m, p)`, where `m` is the number of points and
+        `p` is the number of latent-space dimensions
     noise :
-        array of regression noise. All dimensions correspond to the batch dimension.
+        array of regression noise broadcastable with shape `(n, m)`
     """
     def __init__(self, features, coefficients, precision):
-        super(LinearRegressionDistribution, self).__init__(features=features, coefficients=coefficients,
-                                                           precision=precision)
+        super(CollaborativeFilteringDistribution, self).__init__(
+            features=features, coefficients=coefficients, precision=precision
+        )
         # Disable the cache
         self._statistics = None
 
     @statistic
     def mean(self):
-        return np.dot(self._features, self._coefficients)
-
-    @statistic
-    def var(self):
-        return np.ones_like(self.mean) * 1 / self._precision
+        return np.dot(s(self._features, 1), s(self._coefficients, 1).T)
 
     def assert_valid_parameters(self):
         features = s(self._features, 1)
         precision = s(self._precision, 1)
         coefficients = s(self._coefficients, 1)
         assert np.ndim(features) == 2, "`features` must be two-dimensional"
-        assert np.ndim(coefficients) == 1, "`coefficients` must be one-dimensional"
-        assert features.shape[1] == coefficients.shape[0], "second dimension of `features` and " \
-            "first dimension of `coefficients` must match"
+        assert np.ndim(coefficients) == 2, "`coefficients` must be two-dimensional"
+        assert features.shape[1] == coefficients.shape[1], "second dimension of `features` and " \
+            "`coefficients` must match"
         np.testing.assert_array_less(0, precision, "`precision` must be positive")
 
     @staticmethod
@@ -46,7 +44,7 @@ class LinearRegressionDistribution(Distribution):
         raise NotImplementedError
 
     def natural_parameters(self, x, variable):
-        mean = np.dot(s(self._features, 1), s(self._coefficients, 1))
+        mean = np.dot(s(self._features, 1), s(self._coefficients, 1).T)
         ones = np.ones_like(mean)
         precision = s(self._precision, 1) * ones
         if is_dependent(x, variable):
@@ -56,17 +54,21 @@ class LinearRegressionDistribution(Distribution):
             }
         elif is_dependent(self._features, variable):
             return {
-                'mean': (precision * s(x, 1))[:, None] * s(self._coefficients, 1),
-                'outer': -0.5 * precision[:, None, None] * s(self._coefficients, 'outer')
+                'mean': np.dot(precision * s(x, 1), s(self._coefficients, 1)),
+                'outer': -0.5 * np.sum(
+                    precision[..., None, None] * s(self._coefficients, 'outer'), axis=1
+                )
             }
         elif is_dependent(self._coefficients, variable):
             return {
-                'mean': (precision * s(x, 1))[:, None] * s(self._features, 1),
-                'outer': -0.5 * precision[:, None, None] * s(self._features, 'outer')
+                'mean': np.einsum('ij,ip->jp', precision * s(x, 1), s(self._features, 1)),
+                'outer': -0.5 * np.sum(
+                    precision[..., None, None] * s(self._features, 'outer')[:, None], axis=0
+                )
             }
         elif is_dependent(self._precision, variable):
-            _outer = np.sum(s(self._features, 'outer') * s(self._coefficients, 'outer'),
-                            axis=(1, 2))
+            _outer = np.sum(s(self._features, 'outer')[:, None] * s(self._coefficients, 'outer'),
+                            axis=(2, 3))
             return {
                 'log': 0.5 * ones,
                 'mean': -0.5 * (s(x, 'square') - 2 * s(x, 'mean') * mean + _outer)
