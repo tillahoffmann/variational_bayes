@@ -18,12 +18,13 @@ class CollaborativeFilteringDistribution(Distribution):
     noise :
         array of regression noise broadcastable with shape `(n, m)`
     """
-    def __init__(self, features, coefficients, precision):
+    def __init__(self, features, coefficients, precision, strict=True):
         super(CollaborativeFilteringDistribution, self).__init__(
             features=features, coefficients=coefficients, precision=precision
         )
         # Disable the cache
         self._statistics = None
+        self.strict = strict
 
     @statistic
     def mean(self):
@@ -44,24 +45,32 @@ class CollaborativeFilteringDistribution(Distribution):
         raise NotImplementedError
 
     def natural_parameters(self, x, variable):
+        # Make sure we have the right data
+        mask = ~np.isnan(s(x, 1))
+        assert not self.strict or np.all(mask), "missing values"
+
         mean = np.dot(s(self._features, 1), s(self._coefficients, 1).T)
         ones = np.ones_like(mean)
         precision = s(self._precision, 1) * ones
+
         if is_dependent(x, variable):
             return {
                 'mean': precision * mean,
                 'square': -0.5 * precision
             }
-        elif is_dependent(self._features, variable):
+        precision *= mask
+
+        if is_dependent(self._features, variable):
             return {
-                'mean': np.dot(precision * s(x, 1), s(self._coefficients, 1)),
-                'outer': -0.5 * np.sum(
+                'mean': np.dot(precision * np.nan_to_num(s(x, 1)), s(self._coefficients, 1)),
+                'outer': -0.5 * np.nansum(
                     precision[..., None, None] * s(self._coefficients, 'outer'), axis=1
                 )
             }
         elif is_dependent(self._coefficients, variable):
             return {
-                'mean': np.einsum('ij,ip->jp', precision * s(x, 1), s(self._features, 1)),
+                'mean': np.einsum('ij,ip->jp', precision * np.nan_to_num(s(x, 1)),
+                                  s(self._features, 1)),
                 'outer': -0.5 * np.sum(
                     precision[..., None, None] * s(self._features, 'outer')[:, None], axis=0
                 )
@@ -70,8 +79,9 @@ class CollaborativeFilteringDistribution(Distribution):
             _outer = np.sum(s(self._features, 'outer')[:, None] * s(self._coefficients, 'outer'),
                             axis=(2, 3))
             return {
-                'log': 0.5 * ones,
-                'mean': -0.5 * (s(x, 'square') - 2 * s(x, 'mean') * mean + _outer)
+                'log': 0.5 * mask,
+                'mean': -0.5 * (np.nan_to_num(s(x, 'square')) -
+                                2 * np.nan_to_num(s(x, 'mean')) * mean + _outer)
             }
 
     def log_proba(self, x):
