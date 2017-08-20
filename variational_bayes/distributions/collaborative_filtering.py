@@ -81,11 +81,13 @@ class CollaborativeFilteringDistribution(Distribution):
             return {
                 'log': 0.5 * mask,
                 'mean': -0.5 * (np.nan_to_num(s(x, 'square')) -
-                                2 * np.nan_to_num(s(x, 'mean')) * mean + _outer)
+                                2 * np.nan_to_num(s(x, 'mean')) * mean + _outer * mask)
             }
 
     def log_proba(self, x):
         # Get the coefficients for the noise
         natural_parameters = self.natural_parameters(x, self._precision)
-        return natural_parameters['log'] * s(self._precision, 'log') - 0.5 * np.log(2 * np.pi) + \
+        lp = natural_parameters['log'] * s(self._precision, 'log') - 0.5 * np.log(2 * np.pi) + \
             s(self._precision, 'mean') * natural_parameters['mean']
+        lp *= ~np.isnan(s(x, 1))
+        return lp
