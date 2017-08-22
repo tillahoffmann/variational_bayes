@@ -41,6 +41,13 @@ class Distribution:
                            else np.asarray(value) for key, value in parameters.items()}
         self.assert_valid_parameters()
 
+    def copy(self):
+        """
+        Create a deep copy of the distribution.
+        """
+        parameters = {key: np.copy(value) for key, value in self.parameters.items()}
+        return self.__class__(**parameters)
+
     def update(self, canonical_parameters, **kwargs):
         """
         Update the distribution with the given canonical paramters.
