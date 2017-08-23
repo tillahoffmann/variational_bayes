@@ -64,6 +64,12 @@ class Model:
     def __getitem__(self, name):
         return self._factors[name]
 
+    def copy_factors(self):
+        """
+        Create a deep copy of the factors of a model.
+        """
+        return {k: v.copy() for k, v in self._factors.items()}
+
     def update(self, steps, tqdm=None, update_order=None, convergence_predicate=None, **kwargs):
         """
         Update the factors of the approximate posterior.
