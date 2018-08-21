@@ -1,0 +1,10 @@
+{
+    "rho/concentration": 1e-3,
+    "mu/precision": 1.0e-4,
+    "Lambda/shape": 0.0,
+    "Lambda/scale": 1.0,
+    "A/precision": 1e-10,
+    "tau/shape": 1e-3,
+    "tau/scale": 1e-3,
+    "seed": 2
+}
